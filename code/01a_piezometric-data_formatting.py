@@ -116,8 +116,8 @@ def calculate_metrics(df, piezo_id, params_dict):
     elev = params['elevation']
 
     # Calculos
-    df[gw_depth_name] = (sensor_depth - df['LEVEL'])    # Profundidad del sensor - columna de agua 
-    df[gw_level_name] = elev - df[gw_depth_name]        # Altitud del suelo - profundidad del agua
+    df[gw_depth_name] = (sensor_depth - df['LEVEL']) * (-1)    # Profundidad del sensor - columna de agua * -1 (prof. negativa)
+    df[gw_level_name] = elev - df[gw_depth_name]               # Altitud del suelo - profundidad del agua
 
     return df
 
@@ -148,17 +148,15 @@ def format_columns(df):
 
 # MANEJO DE RUTAS Y ARCHIVOS
 
-# Ruta a la carpeta con los datos crudos
+# Rutas a las carpetas de entrada y salida
 raw_data_path = '../data/raw/piezometers/'
-
-# Patron en archivos crudos para buscar dentro de la carpeta
-file_pattern = '*.csv'
-
-# Ruta a la carpeta de salida
 output_path = '../data/processed/01_formatted'
 
 # Crea la carpeta de salida en caso de que no exista
 os.makedirs(output_path, exist_ok=True)
+
+# Patron en archivos crudos para buscar dentro de la carpeta
+file_pattern = '*.csv'
 
 # Aplica la funcion group_datalogger_files para almacenar todas las
 # rutas a archivos en un diccionario

@@ -52,7 +52,7 @@ output_path = '../data/processed/03_daily'
 os.makedirs(output_path, exist_ok=True)
 
 # Construye los patrones de ruta
-piezo_filepath_pattern = os.path.join(formatted_data_path, piezo_pattern)
+piezo_filepath_pattern = os.path.join(cleaned_data_path, piezo_pattern)
 soil_filepath_pattern = os.path.join(formatted_data_path, soil_pattern)
 
 # Genera listas con las rutas de los archivos que cumplen con los patrones
