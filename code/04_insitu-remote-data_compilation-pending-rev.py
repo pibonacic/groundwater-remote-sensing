@@ -1,5 +1,6 @@
 # PENDIENTES
-# Ajustar la función para que sea aplicable en múltiples sitios
+# Ajustar la función para que sea aplicable en múltiples sitios. Actualmente, solo funciona para
+# los datos asociados a las rutas definidas al inicio
 
 
 # IMPORTACIONES

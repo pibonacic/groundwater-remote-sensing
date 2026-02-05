@@ -14,6 +14,21 @@ piezometer_params = {
         'name': 'SDH1PS01',
         'sensor_depth': 1.2,
         'elevation': 3827.6
+    },
+    '2190064': {
+        'name': 'SDH1PS02',
+        'sensor_depth': 1.05,
+        'elevation': 3828.5     # 3828.499
+    },
+    '2188504': {
+        'name': 'SDH1PS03',
+        'sensor_depth': 0.895,   # CORROBORAR
+        'elevation': 3790     # CORROBORAR
+    },
+    '2190049': {
+        'name': 'SDH1PS04',
+        'sensor_depth': 0.79,   # CORROBORAR
+        'elevation': 3790     # CORROBORAR
     }
 }
 

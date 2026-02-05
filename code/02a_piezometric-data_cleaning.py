@@ -17,7 +17,8 @@ field_campaigns = {
     'Jan 2025': pd.date_range(start='2025-01-21', end='2025-01-23'),
     'Apr 2025': pd.date_range(start='2025-04-28', end='2025-05-02'),
     'Jul 2025': pd.date_range(start='2025-07-08', end='2025-07-16'),
-    'Nov 2025': pd.date_range(start='2025-11-19', end='2025-11-21')
+    'Nov 2025': pd.date_range(start='2025-11-19', end='2025-11-21'),
+    'Jan 2026': pd.date_range(start='2026-01-24', end='2026-01-27')
 }
 
 
