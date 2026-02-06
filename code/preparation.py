@@ -132,5 +132,59 @@ def obs_data(df):
         df.hist(bins=15, figsize=(10, 10))
 
 
-def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, random_seed: int = 42):
-    return
+def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, random_state: int = 42):
+    """
+    Preprocess the dataset for machine learning.
+    
+    Steps:
+    1. Split the dataframe into features (X) and target (y).
+    2. Split the data into training and testing sets.
+    3. Standardize the feature data (zero mean, unit variance).
+    4. Convert target arrays to 1D numpy arrays.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe.
+    target : str
+        Name of the target column.
+    test_size : float, default=0.2
+        Fraction of the dataset to use as the test set.
+    random_state : int, default=42
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    X_train_scaled : np.ndarray
+        Standardized training features.
+    X_test_scaled : np.ndarray
+        Standardized testing features.
+    y_train : np.ndarray
+        Training target values.
+    y_test : np.ndarray
+        Testing target values.
+    scaler : StandardScaler
+        Fitted scaler object for possible inverse transformations.
+    """
+    X = df.drop(columns=[target])
+    y = df[target]
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+    
+    print("Training data: ")
+    print("Count x: ", X_train.count())
+    print("Count y: ", y_train.count())
+
+    print("Testing data: ")
+    print("Count x", X_test.count())
+    print("Count y: ", y_test.count())
+
+    scaler = StandardScaler()
+
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    y_train = y_train.to_numpy().ravel()
+    y_test = y_test.to_numpy().ravel()
+    
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler

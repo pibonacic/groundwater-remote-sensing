@@ -38,8 +38,8 @@ gw_depth_name = 'Piezometer_na_groundwater-depth_m'
 gw_level_name = 'Piezometer_na_groundwater-level_masl'
 gw_temp_name = 'Piezometer_na_temperature_degreeC'
 
-# Columnas a eliminar
-columns_list = ['ms', 'LEVEL', 'Date', 'Time']
+# Columnas a eliminar # TEMPORAL: COLUMNAS DE ALTITUD Y TEMPERATURA
+columns_list = ['ms', 'LEVEL', 'Date', 'Time', 'Piezometer_na_groundwater-level_masl', 'Piezometer_na_temperature_degreeC']
 
 
 # DEFINCION DE FUNCIONES
@@ -171,7 +171,7 @@ output_path = '../data/processed/01_formatted'
 os.makedirs(output_path, exist_ok=True)
 
 # Patron en archivos crudos para buscar dentro de la carpeta
-file_pattern = '*.csv'
+file_pattern = '*compensated.csv'
 
 # Aplica la funcion group_datalogger_files para almacenar todas las
 # rutas a archivos en un diccionario
