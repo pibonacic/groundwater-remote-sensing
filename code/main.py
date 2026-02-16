@@ -3,10 +3,11 @@ Author: Pedro Bonacic Vera
 Description:
 """
 
-# probar incluir variables in-situ (por si solas e hibrido): pp, theta, soilTemp, soilEC 15cm
-# probar gradient boosting
-# probar inputs del balance de energía (SEBS)
 # probar incrementar numero de img input (HLS collection)
+# probar inputs del balance de energía (SEBS)
+# evaluar lags de la pp sobre nivel freatico o humedad para determinar patron de agregacion especial
+# probar gradient boosting
+# probar regresion multiple entre gw y vars insitu
 
 
 import pandas as pd
@@ -21,13 +22,51 @@ from shap_analysis import calculate_shap_values, plot_shap
 # 1. Load and prepare data
 # -----------------------------
 
-insitu_df = load_and_prepare_data('../data/processed/03_daily/piezo-data_SDH1PS01_daily.csv')
-remote_df = load_and_prepare_data('../data/raw/satellites/SDH1G30P01_sentinel2_bands_indices_TCT_202405-202601.csv')
+insitu_df = load_and_prepare_data('../data/processed/in-situ/insitu_training_data.csv')
+remote_df = load_and_prepare_data('../data/processed/satellites/SDH1G30P01_sentinel2_bands_indices_TCT_202405-202601.csv')
 
 merged_df = merge_datasets(insitu_df, remote_df)
 
-target = 'Piezometer_na_groundwater-depth_m'
-features =['Piezometer_na_groundwater-depth_m', 's2_ndwi', 's2_ndvi']
+target = 'SDH1PS01_gw-depth_m'
+
+insitu_features = [
+    'SDH1PS01_gw-depth_m',
+    'ATMOS41_precipitation_mm',
+    'ATMOS41_solar-radiation_Wm2',
+    'ATMOS41_wind-speed_ms',
+    'ATMOS41_air-temperature_degreeC',
+    'TEROS12-15cm_water-content_m3m3',
+    'TEROS12-15cm_soil-temperature_degreeC',
+    'TEROS12-15cm_saturation-extract-ec_mScm',
+    'TEROS12-30cm_water-content_m3m3',
+    'TEROS12-30cm_soil-temperature_degreeC',
+    'TEROS12-30cm_saturation-extract-ec_mScm',
+    'TEROS12-48cm_water-content_m3m3',
+    'TEROS12-48cm_soil-temperature_degreeC',
+    'TEROS12-48cm_saturation-extract-ec_mScm',
+    'TEROS21-25cm_soil-temperature_degreeC',
+    'TEROS21-35cm_soil-temperature_degreeC',
+]
+
+remote_features = [
+    's2_B2',
+    's2_B3',
+    's2_B4',
+    's2_B8',
+    's2_B11',
+    's2_B12',
+    's2_ndvi',
+    's2_ndwi',
+    's2_mndwi',
+    's2_ndmi',
+    's2_ndmi2',
+    's2_srt',
+    's2_brightness',
+    's2_greenness',
+    's2_wetness'
+]
+
+features = insitu_features + remote_features
 
 filt_df = merged_df[features]
 headings = filt_df.drop(columns=target).columns

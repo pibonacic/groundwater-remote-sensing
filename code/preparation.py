@@ -10,13 +10,13 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.model_selection import train_test_split
 
 
-def load_and_prepare_data(file_path: str, index_col: str='Timestamps', date_format: str='%Y-%m-%d', sep: str=',') -> pd.DataFrame:
+def load_and_prepare_data(filepath: str, index_col: str='Timestamps', date_format: str='%Y-%m-%d', sep: str=',') -> pd.DataFrame:
     """
     Load a CSV file, set a DateimeIndex and convert all columns to numeric, coercing errors to NaN.
     
     Parameters
     ----------
-    file_path : str
+    filepath : str
         Path to the CSV file.
     index_col : str
         Column containing datetime information to be used as index.
@@ -30,7 +30,7 @@ def load_and_prepare_data(file_path: str, index_col: str='Timestamps', date_form
     pd.DataFrame
         DataFrame with a DatetimeIndex and numeric columns. Non-convertible values are set as NaN.
     """
-    df = pd.read_csv(file_path, sep=sep)
+    df = pd.read_csv(filepath, sep=sep)
 
     df[index_col] = pd.to_datetime(df[index_col], format=date_format)
     df.set_index(index_col, inplace=True)
@@ -94,7 +94,7 @@ def remove_outliers(df: pd.DataFrame, z_thresh: float = 3.0) -> pd.DataFrame:
     numeric_df = df.select_dtypes(include=[np.number])
 
     z_scores = zscore(numeric_df)               # Calculate zscore for each column
-    is_normal = np.abs(z_scores) < z_thresh     # Evaluate the zscore against the threshold
+    is_normal = np.abs(z_scores) <= z_thresh     # Evaluate the zscore against the threshold
     clean_rows = is_normal.all(axis=1)          # Identify rows where all values are within normal range
 
     return df[clean_rows]                       # Apply the filter
