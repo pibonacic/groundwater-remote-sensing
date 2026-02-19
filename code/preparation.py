@@ -5,6 +5,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from scipy.stats import zscore
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.model_selection import train_test_split
@@ -39,40 +40,69 @@ def load_and_prepare_data(filepath: str, index_col: str='Timestamps', date_forma
     return df
 
 
-def merge_datasets(insitu_df: pd.DataFrame, remote_df: pd.DataFrame) -> pd.DataFrame:
+def merge_and_slice(insitu_df: pd.DataFrame, remote_df: pd.DataFrame, startDate: str = None, endDate: str = None) -> pd.DataFrame:
     """
-    Join in-situ measurements with remote sensing time series using their DatetimeIndices
+    Join in-situ measurements with remote sensing time series using their DatetimeIndices and 
+    optionally clip them to a specified time range.
 
     Parameters
     ----------
-    insitu_df: pd.DataFrame
+    insitu_df : pd.DataFrame
         Dataframe containing in-situ measurements.
-    remote_df: pd.DataFrame
+    remote_df : pd.DataFrame
         Dataframe containing satellite-derived data.
-
+    startDate : str, optional
+        Date in %Y-%m-%d format
+    endDate : str, optional
+        Date in %Y-%m-%d' format
     Returns
     ----------
     pd.DataFrame
-        A merged Dataframe with satellite-derived data aligned to the in-situ measurement dates.
+        A merged Dataframe with satellite-derived data aligned to the in-situ measurement dates,
+        clipped to a specified time range.
     """
-    df = insitu_df.join(remote_df, how='left')
+    remote_cleaned = remote_df.groupby(remote_df.index).mean()          # TEMPORAL, DEBERIA IR EN FUNCION APARTE
+
+    df = insitu_df.join(remote_cleaned, how='left')
+
+    if startDate is not None or endDate is not None:
+        df = df.loc[startDate:endDate]
+
     return df
 
-def remove_missing_values(df: pd.DataFrame) -> pd.DataFrame:
+
+def handle_missing_values(df: pd.DataFrame, strategy: str = 'drop', order: int = 2) -> pd.DataFrame:
     """
-    Remove any row that contains at least one NaN.
+    Handle missing values in the DataFrame according to a specified strategy.
 
     Parameters
     ----------
     df : pd.DataFrame
         Input dataframe.
+    strategy : str, default = 'drop
+        Strategy to handle missing values:
+        - 'drop' : remove rows containing any NaN
+        - 'linear' : interpolate NaN using linear method
+        - 'spline' : interpolate NaN using spline method
+    order : int, default = 2
+        Polynomial order for spline interpolation.
 
     Returns
     -------
     pd.DataFrame
-        DataFrame without missing values.
+        DataFrame with missing values handled.
     """
-    return df.dropna()
+    if strategy == 'drop':
+        return df.dropna()
+    
+    elif strategy == 'linear':
+        return df.interpolate(method='linear', limit_direction='both')
+    
+    elif strategy == 'spline':
+        return df.interpolate(method='spline', order=order, limit_direction='both')
+    
+    else:
+        raise ValueError('Strategy not supported')
 
 
 def remove_outliers(df: pd.DataFrame, z_thresh: float = 3.0) -> pd.DataFrame:
@@ -102,34 +132,36 @@ def remove_outliers(df: pd.DataFrame, z_thresh: float = 3.0) -> pd.DataFrame:
 
 def obs_data(df):
     """
-    Display basic statistics and histograms for the DataFrame.
+    Display basic statistics and plots for the DataFrame.
     
     Statistics include count, mean, standard deviation, min, and max for each column.
-    Also plots histograms for visual inspection of distributions.
+    Plots include histograms and time series for visual inspection of data.
     
     Parameters
     ----------
     df : pd.DataFrame
         Input dataframe for observation.
     """
-    mean_values = df.mean()
-    std_values = df.std()
-    min_values = df.min()
-    max_values = df.max()
+    df_long = df.reset_index().melt(id_vars=df.index.name)
 
-    statistics_table = pd.DataFrame({
-        'Count': df.count(),
-        'Mean': mean_values,
-        'StdDev': std_values,
-        'Min': min_values,
-        'Max': max_values
-    })
+    print('\n--- Dataframe info ---')
+    print(f'Unique days: {len(df)}')
+    print(f'Temporal range: {df.index.min()} to {df.index.max()}')
 
-    print(statistics_table)
+    print('\n--- Descriptive stats ---')
+    print(df.describe().T[['count', 'mean', 'std', 'min', 'max']])
 
-    print('\nHistograms')
-    with plt.rc_context({'axes.formatter.useoffset': False}):
-        df.hist(bins=15, figsize=(10, 10))
+    print('\n--- Histograms ---')
+    g_hist = sns.displot(data=df_long, x='value', col='variable', col_wrap=4, kde=True,
+                         bins=15, color='#4C72B0', edgecolor='white', linewidth = 1.5,
+                         height=3.5, aspect=1.2, common_bins=False, facet_kws={'sharex': False, 'sharey': False})
+    plt.show()
+
+    print('\n--- Time series ---')
+    g_line = sns.relplot(data=df_long, x=df.index.name, y='value', col='variable', marker='o', markersize=3,
+                         col_wrap=4, kind='line', facet_kws={'sharex': True, 'sharey': False})
+    g_line.figure.autofmt_xdate()
+    plt.show()
 
 
 def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, random_state: int = 42):
