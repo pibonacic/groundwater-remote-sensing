@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import zscore
+from scipy.signal import savgol_filter
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.model_selection import train_test_split
 
@@ -42,8 +43,8 @@ def load_and_prepare_data(filepath: str, index_col: str='Timestamps', date_forma
 
 def merge_and_slice(insitu_df: pd.DataFrame, remote_df: pd.DataFrame, startDate: str = None, endDate: str = None) -> pd.DataFrame:
     """
-    Join in-situ measurements with remote sensing time series using their DatetimeIndices and 
-    optionally clip them to a specified time range.
+    Join in-situ measurements with remote sensing time series using their DatetimeIndices 
+    and optionally clip them to a specified time range.
 
     Parameters
     ----------
@@ -61,9 +62,7 @@ def merge_and_slice(insitu_df: pd.DataFrame, remote_df: pd.DataFrame, startDate:
         A merged Dataframe with satellite-derived data aligned to the in-situ measurement dates,
         clipped to a specified time range.
     """
-    remote_cleaned = remote_df.groupby(remote_df.index).mean()          # TEMPORAL, DEBERIA IR EN FUNCION APARTE
-
-    df = insitu_df.join(remote_cleaned, how='left')
+    df = insitu_df.join(remote_df, how='left')
 
     if startDate is not None or endDate is not None:
         df = df.loc[startDate:endDate]
@@ -71,43 +70,17 @@ def merge_and_slice(insitu_df: pd.DataFrame, remote_df: pd.DataFrame, startDate:
     return df
 
 
-def handle_missing_values(df: pd.DataFrame, strategy: str = 'drop', order: int = 2) -> pd.DataFrame:
+def handle_duplicate_values(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Handle missing values in the DataFrame according to a specified strategy.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe.
-    strategy : str, default = 'drop
-        Strategy to handle missing values:
-        - 'drop' : remove rows containing any NaN
-        - 'linear' : interpolate NaN using linear method
-        - 'spline' : interpolate NaN using spline method
-    order : int, default = 2
-        Polynomial order for spline interpolation.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with missing values handled.
+    
     """
-    if strategy == 'drop':
-        return df.dropna()
-    
-    elif strategy == 'linear':
-        return df.interpolate(method='linear', limit_direction='both')
-    
-    elif strategy == 'spline':
-        return df.interpolate(method='spline', order=order, limit_direction='both')
-    
-    else:
-        raise ValueError('Strategy not supported')
+    return df.groupby(df.index).mean()
 
 
 def remove_outliers(df: pd.DataFrame, z_thresh: float = 3.0) -> pd.DataFrame:
     """
     Remove any row that contains at least one outlier, defined by a column-wise Z-score threshold.
+    Ignores NaNs.
     
     Parameters
     ----------
@@ -122,12 +95,77 @@ def remove_outliers(df: pd.DataFrame, z_thresh: float = 3.0) -> pd.DataFrame:
         DataFrame without outliers.
     """
     numeric_df = df.select_dtypes(include=[np.number])
+    z_scores = zscore(numeric_df, nan_policy='omit')                    # Calculate zscore for each column, omiting NaNs
 
-    z_scores = zscore(numeric_df)               # Calculate zscore for each column
-    is_normal = np.abs(z_scores) <= z_thresh     # Evaluate the zscore against the threshold
-    clean_rows = is_normal.all(axis=1)          # Identify rows where all values are within normal range
+    is_normal = (np.abs(z_scores) <= z_thresh) | (np.isnan(z_scores))   # Evaluate the zscore against the threshold
+    clean_rows = is_normal.all(axis=1)                                  # Identify rows where all values are within normal range
 
-    return df[clean_rows]                       # Apply the filter
+    return df[clean_rows]                                               # Apply the filter
+
+
+def handle_missing_values(df: pd.DataFrame, strategy: str = 'drop') -> pd.DataFrame:
+    """
+    Handle missing values in the DataFrame according to a specified strategy.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe.
+    strategy : str, default = 'drop
+        Strategy to handle missing values:
+        - 'drop' : remove rows containing any NaN
+        - 'linear' : interpolate NaN using linear method
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with missing values handled.
+    """
+    if strategy == 'drop':
+        return df.dropna()
+    
+    elif strategy == 'linear':
+        return df.interpolate(method='linear', limit_direction='both')
+    
+    else:
+        raise ValueError('Strategy not supported')
+
+
+def smooth_remote_data(df: pd.DataFrame, cols: list = None, window_length: int = 11, polyorder: int = 2) -> pd.DataFrame:
+    """
+    Apply a Savitzky-Golay filter to smooth a subset of columns in a DataFrame.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame without datetime gaps.
+    cols : list, optional
+        List of column names to smooth. If None, all columns are processed.
+    window_length : int, default 11
+        Lenght of the filter window. Must be a positive odd integer.
+    polyorder : int, default 2
+        Polynomial order used to fit the samples. Must be less than window_length.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with selected columns smoothed and others preserved.
+    """
+    if window_length % 2 == 0:
+        window_length += 1
+
+    df_copy = df.copy()
+
+    if cols is None:
+        cols_to_smooth = df.columns.tolist()
+    else:
+        cols_to_smooth = [c for c in cols if c in df.columns]
+
+    df_copy[cols_to_smooth] = df[cols_to_smooth].apply(
+        lambda x: savgol_filter(x, window_length=window_length, polyorder=polyorder)
+        )
+
+    return df_copy
 
 
 def obs_data(df):
