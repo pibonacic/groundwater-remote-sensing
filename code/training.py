@@ -7,7 +7,6 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import mean_squared_error, root_mean_squared_error, mean_absolute_error, r2_score
 from hydroeval import pbias
 
-# definir formato de los parametros de entrada a las funciones (str, int, etc)
 
 def tune_model(X_train_scaled: pd.DataFrame, y_train: np.ndarray,
                param_grid: dict=None, cv: int=3, scoring: str='r2', random_state: int=42) -> dict:
@@ -121,6 +120,42 @@ def evaluate_model(model: RandomForestRegressor,
     return y_pred, metrics
 
 
+def apply_model(df: pd.DataFrame, target: str, scaler, model: RandomForestRegressor) -> pd.DataFrame:
+    """
+    Predict over the entire dataset and create a dataframe of observed values and model predictions.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe containing both features and target variable.
+    target : str
+        Name of the target column.
+    scaler : StandardScaler
+        Fitted scaler object used during model training.
+    model : RandomForestRegressor
+        Trained Random Forest model.
+
+    Returns
+    ----------
+    results_df : pd.DataFrame
+        DataFrame with observed and modeled values from the complete study period.
+    """
+    
+    X = df.drop(columns=[target])
+    y_obs = df[target]
+    
+    X_scaled = scaler.transform(X)
+    
+    y_pred = model.predict(X_scaled)
+    
+    results_df = pd.DataFrame({
+        'Observed': y_obs,
+        'Predicted': y_pred
+    }, index=df.index).sort_index()
+
+    return results_df
+
+
 def plot_pred_vs_real(y_test: np.ndarray, y_pred: np.ndarray):
     """
     Plot observed vs predicted values with linear trend.
@@ -136,17 +171,40 @@ def plot_pred_vs_real(y_test: np.ndarray, y_pred: np.ndarray):
     y_pred = np.array(y_pred, dtype=float).flatten()
 
     plt.figure(figsize=(5,5))
-    plt.scatter(y_test, y_pred, label='GWL', s=2, c='red', alpha=0.2)
+    plt.scatter(y_test, y_pred, s=2, c='#4C72B0', alpha=1)
     plt.plot(y_test, y_test, label='1:1', c='black', linewidth=0.7)
 
     # Linear regression
     line = Polynomial.fit(y_test, y_pred, deg=1)
     x_values = np.linspace(min(y_test), max(y_test), 100)
     y_values = line(x_values)
-    plt.plot(x_values, y_values, linestyle='dashed', c='blue', linewidth=0.8)
+    plt.plot(x_values, y_values, label='Linear adjustment', linestyle='dashed', c='#4C72B0', alpha=1, linewidth=0.8)
 
-    plt.xlabel('Observed GW level (m)')
-    plt.ylabel('Predicted GW level (m)')
+    plt.xlabel('Observed groundwater depth (m)')
+    plt.ylabel('Predicted groundwater depth (m)')
     plt.grid(linestyle="--", alpha=0.7, linewidth=0.4)
     plt.legend(fontsize=10)
+    plt.show()
+
+
+def plot_timeseries_results(df: pd.DataFrame):
+    """
+    Plot a timeseries comparison between observed values and model predictions.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe containing observed and predicted target values.
+    """
+    y_obs = df['Observed']
+    y_pred = df['Predicted']
+
+    plt.figure(figsize=(15, 6))
+    plt.plot(df.index, y_obs, label='Observed values', color='#4C72B0', linewidth=1)
+    plt.plot(df.index, y_pred, label='Model predictions', color='#C44E52', linewidth=1.5, linestyle='--')
+    
+    plt.ylabel('Groundwater depth (m)')
+    plt.legend()
+    plt.grid(True, alpha=0.2)
+    plt.tight_layout()
     plt.show()

@@ -2,9 +2,8 @@ import os
 import glob
 import pandas as pd
 
-import insitu_config as config
-import insitu_utils as utils
-
+from insitu_config import dirs, campaigns, piezometer_config, datalogger_config, datalogger_vars, no_outlier_check, aggregation_rules
+from insitu_utils import load_piezometer_data, calculate_gw_metrics, load_datalogger_data, remove_campaign_outliers, aggregate_daily
 
 # -----------------------------
 # 1. Piezometer preprocessing
@@ -12,23 +11,23 @@ import insitu_utils as utils
 
 processed_piezometers = {}
 
-for piezo_id, properties in config.piezometer_config.items():
+for piezo_id, properties in piezometer_config.items():
 
-    pattern = os.path.join(config.dirs['piezometers'], f'{piezo_id}_*compensated.csv')
+    pattern = os.path.join(dirs['piezometers'], f'{piezo_id}_*compensated.csv')
     files = sorted(glob.glob(pattern))
 
     piezo_name = properties['name']
     raw_dfs = []
 
     for filepath in files:
-        df = utils.load_piezometer_data(filepath)
+        df = load_piezometer_data(filepath)
         raw_dfs.append(df)
 
     if raw_dfs:
         full_df = pd.concat(raw_dfs, axis=0).sort_index()
-        metrics_df = utils.calculate_gw_metrics(full_df, properties)
-        clean_df = utils.remove_campaign_outliers(metrics_df, config.campaigns, config.no_outlier_check)
-        daily_df = utils.aggregate_daily(clean_df, config.aggregation_rules)
+        metrics_df = calculate_gw_metrics(full_df, properties)
+        clean_df = remove_campaign_outliers(metrics_df, campaigns, no_outlier_check)
+        daily_df = aggregate_daily(clean_df, aggregation_rules)
 
         processed_piezometers[piezo_name] = daily_df
 
@@ -48,7 +47,7 @@ for piezo_id, properties in config.piezometer_config.items():
 # 2. Datalogger preprocessing
 # -----------------------------
 
-dlog_pattern = os.path.join(config.dirs['dataloggers'], 'z6*.csv')
+dlog_pattern = os.path.join(dirs['dataloggers'], 'z6*.csv')
 dlog_files = sorted(glob.glob(dlog_pattern))
 
 dlog_raw_dfs = []
@@ -62,10 +61,10 @@ for filepath in dlog_files:
     except IndexError:
         continue
 
-    current_map = config.datalogger_config.get(logger_id, {}).get(config_id)
+    current_map = datalogger_config.get(logger_id, {}).get(config_id)
 
     if current_map:
-        df = utils.load_datalogger_data(filepath, current_map, config.datalogger_vars)
+        df = load_datalogger_data(filepath, current_map, datalogger_vars)
         dlog_raw_dfs.append(df)
 
         print(f'Logger {logger_id} | Config: {config_id}')
@@ -77,8 +76,8 @@ for filepath in dlog_files:
 
 if dlog_raw_dfs:
     dlog_full_df = pd.concat(dlog_raw_dfs, axis=0).sort_index()
-    dlog_clean_df = utils.remove_campaign_outliers(dlog_full_df, config.campaigns, config.no_outlier_check)
-    dlog_daily_df = utils.aggregate_daily(dlog_clean_df, config.aggregation_rules)
+    dlog_clean_df = remove_campaign_outliers(dlog_full_df, campaigns, no_outlier_check)
+    dlog_daily_df = aggregate_daily(dlog_clean_df, aggregation_rules)
 
     print('Compiled datalogger file')
     print(f'  - Processed files: {len(dlog_files)}')
@@ -96,14 +95,14 @@ else:
 # 3. Merge and export
 # -----------------------------
 
-os.makedirs(config.dirs['outputs'], exist_ok=True)
+os.makedirs(dirs['processed'], exist_ok=True)
 
 target_piezo = processed_piezometers['SDH1PS01']
 
 training_df = target_piezo.merge(dlog_daily_df, left_index=True, right_index=True, how='outer')
 
 output_filename = 'insitu_training_data.csv'
-output_path = os.path.join(config.dirs['outputs'], output_filename)
+output_path = os.path.join(dirs['processed'], output_filename)
 
 training_df.to_csv(output_path)
 

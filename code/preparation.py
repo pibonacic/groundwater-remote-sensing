@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import zscore
 from scipy.signal import savgol_filter
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
 
@@ -241,6 +241,8 @@ def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, ran
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
     
+    test_dates = y_test.index
+
     print("Training data: ")
     print("Count x: ", X_train.count())
     print("Count y: ", y_train.count())
@@ -257,4 +259,4 @@ def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, ran
     y_train = y_train.to_numpy().ravel()
     y_test = y_test.to_numpy().ravel()
     
-    return X_train_scaled, X_test_scaled, y_train, y_test, scaler
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates
