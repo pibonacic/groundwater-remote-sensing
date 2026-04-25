@@ -82,7 +82,7 @@ smooth_df = smooth_remote_data(no_nan_df, remote_features, 29, 2)
 
 obs_data(smooth_df)
 
-X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates = preprocess_for_ML(smooth_df, target = target, test_size = 0.2, random_state = 42)
+X_train_scaled, X_test_scaled, y_train, y_test, scaler = preprocess_for_ML(smooth_df, target = target, test_size = 0.2, random_state = 42)
 
 
 # -----------------------------

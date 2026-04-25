@@ -34,9 +34,11 @@ def load_and_prepare_data(filepath: str, index_col: str='Timestamps', date_forma
     """
     df = pd.read_csv(filepath, sep=sep)
 
+    # Standardize index to Datetime objects
     df[index_col] = pd.to_datetime(df[index_col], format=date_format)
     df.set_index(index_col, inplace=True)
 
+    # Coerce non-numeric strings to NaN
     df = df.apply(pd.to_numeric, errors='coerce')
     return df
 
@@ -62,17 +64,28 @@ def merge_and_slice(insitu_df: pd.DataFrame, remote_df: pd.DataFrame, startDate:
         A merged Dataframe with satellite-derived data aligned to the in-situ measurement dates,
         clipped to a specified time range.
     """
+    # Join insitu and remote data. Left join keeps all insitu records to assure index continuity
     df = insitu_df.join(remote_df, how='left')
 
+    # Clip data to a study period if defined
     if startDate is not None or endDate is not None:
         df = df.loc[startDate:endDate]
-
     return df
 
 
 def handle_duplicate_values(df: pd.DataFrame) -> pd.DataFrame:
     """
-    
+    Consolidate records with the same timestamp by calculating the daily mean.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame without duplicated values.
     """
     return df.groupby(df.index).mean()
 
@@ -95,12 +108,14 @@ def remove_outliers(df: pd.DataFrame, z_thresh: float = 3.0) -> pd.DataFrame:
         DataFrame without outliers.
     """
     numeric_df = df.select_dtypes(include=[np.number])
-    z_scores = zscore(numeric_df, nan_policy='omit')                    # Calculate zscore for each column, omiting NaNs
 
-    is_normal = (np.abs(z_scores) <= z_thresh) | (np.isnan(z_scores))   # Evaluate the zscore against the threshold
-    clean_rows = is_normal.all(axis=1)                                  # Identify rows where all values are within normal range
+    # Calculate zscore for each column, omiting NaNs
+    z_scores = zscore(numeric_df, nan_policy='omit')
 
-    return df[clean_rows]                                               # Apply the filter
+    # Filter out any row containing at least one outlier
+    is_normal = (np.abs(z_scores) <= z_thresh) | (np.isnan(z_scores))
+    clean_rows = is_normal.all(axis=1)
+    return df[clean_rows]  
 
 
 def handle_missing_values(df: pd.DataFrame, strategy: str = 'drop') -> pd.DataFrame:
@@ -121,10 +136,10 @@ def handle_missing_values(df: pd.DataFrame, strategy: str = 'drop') -> pd.DataFr
     pd.DataFrame
         DataFrame with missing values handled.
     """
-    if strategy == 'drop':
+    if strategy == 'drop':  # Removes any row with a NaN
         return df.dropna()
     
-    elif strategy == 'linear':
+    elif strategy == 'linear':  # Fill gaps using surrounding values
         return df.interpolate(method='linear', limit_direction='both')
     
     else:
@@ -133,7 +148,7 @@ def handle_missing_values(df: pd.DataFrame, strategy: str = 'drop') -> pd.DataFr
 
 def smooth_remote_data(df: pd.DataFrame, cols: list = None, window_length: int = 11, polyorder: int = 2) -> pd.DataFrame:
     """
-    Apply a Savitzky-Golay filter to smooth a subset of columns in a DataFrame.
+    Apply a Savitzky-Golay filter to smooth a subset of columns in a DataFrame while preserving trends.
 
     Parameters
     ----------
@@ -151,20 +166,23 @@ def smooth_remote_data(df: pd.DataFrame, cols: list = None, window_length: int =
     pd.DataFrame
         DataFrame with selected columns smoothed and others preserved.
     """
+    # Sum 1 if window lenght is an even number
     if window_length % 2 == 0:
         window_length += 1
 
     df_copy = df.copy()
-
+    
+    # Evaluate which columns to apply filter
     if cols is None:
         cols_to_smooth = df.columns.tolist()
     else:
+        # Validate that requested columns exist in the df
         cols_to_smooth = [c for c in cols if c in df.columns]
 
     df_copy[cols_to_smooth] = df[cols_to_smooth].apply(
+        # Apply Savitsky-Golay filter
         lambda x: savgol_filter(x, window_length=window_length, polyorder=polyorder)
         )
-
     return df_copy
 
 
@@ -180,6 +198,7 @@ def obs_data(df):
     df : pd.DataFrame
         Input dataframe for observation.
     """
+    # Pivot to long format for faceted plotting with Seaborn
     df_long = df.reset_index().melt(id_vars=df.index.name)
 
     print('\n--- Dataframe info ---')
@@ -205,7 +224,7 @@ def obs_data(df):
 def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, random_state: int = 42):
     """
     Preprocess the dataset for machine learning.
-    
+
     Steps:
     1. Split the dataframe into features (X) and target (y).
     2. Split the data into training and testing sets.
@@ -236,27 +255,29 @@ def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, ran
     scaler : StandardScaler
         Fitted scaler object for possible inverse transformations.
     """
+    # Isolate features (X) and target (y) 
     X = df.drop(columns=[target])
     y = df[target]
 
+    # Split data for training and testing. Random seed is defined for reproducibility
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
-    
-    test_dates = y_test.index
 
     print("Training data: ")
     print("Count x: ", X_train.count())
     print("Count y: ", y_train.count())
-
     print("Testing data: ")
     print("Count x", X_test.count())
     print("Count y: ", y_test.count())
 
+    # Define a scaler for data standarization (mean=0, std=1)
     scaler = StandardScaler()
 
+    # Standarize features. Fit on training only to avoid data leakeage
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
+    # Flatten target for Scikit-Learn compatibility
     y_train = y_train.to_numpy().ravel()
     y_test = y_test.to_numpy().ravel()
     
-    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler

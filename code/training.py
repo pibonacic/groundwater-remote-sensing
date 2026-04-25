@@ -34,20 +34,23 @@ def tune_model(X_train_scaled: pd.DataFrame, y_train: np.ndarray,
     best_params : dict
         Dictionary of best hyperparameters.
     """
+    # Define a default search space to optimize tree complexity and forest size
     if param_grid is None:
         param_grid ={
-            'n_estimators': [100, 200],         # Number of trees
-            'max_depth': [3, 5, 7],             # Max depth of each tree
-            'min_samples_leaf': [3, 5],         # Minimum samples per leaf
+            'n_estimators': [100, 200],         # Total trees in the forest
+            'max_depth': [3, 5, 7],             # Limit depth to prevent overfitting
+            'min_samples_leaf': [3, 5],         # Minimum points required in a leaf node
         }
     
+    # Search across the grid with cross-validation
     grid = GridSearchCV(
         RandomForestRegressor(random_state=random_state),
         param_grid,
         cv=cv,
         scoring=scoring,
-        n_jobs=-1
+        n_jobs=-1   # Use all available CPU cores for faster processing
     )
+    # Execute the cross-validation to find the best hyperparameter combination
     grid.fit(X_train_scaled, y_train)
 
     return grid.best_params_
@@ -74,11 +77,13 @@ def train_model(X_train_scaled: pd.DataFrame, y_train: np.ndarray,
     model : RandomForestRegressor
         Trained random forest model.
     """
+    # Initialize model with optimized parameters if provided (via **kwargs unpacking)
     if best_params:
         model = RandomForestRegressor(random_state=random_state, **best_params)
     else:
         model = RandomForestRegressor(random_state=random_state)
 
+    # Train the final Random Forest model on the scaled training set
     model.fit(X_train_scaled, y_train)
 
     return model
@@ -105,6 +110,7 @@ def evaluate_model(model: RandomForestRegressor,
     metrics : dict
         Dictionary containing MSE, RMSE, MAE, R2 and PBIAS
     """
+    # Generate predictions applying the model to the unseen test features
     y_pred = model.predict(X_test_scaled)
 
     metrics = {
@@ -116,7 +122,6 @@ def evaluate_model(model: RandomForestRegressor,
     }
 
     print('Model performance: ', metrics)
-
     return y_pred, metrics
 
 
@@ -140,12 +145,12 @@ def apply_model(df: pd.DataFrame, target: str, scaler, model: RandomForestRegres
     results_df : pd.DataFrame
         DataFrame with observed and modeled values from the complete study period.
     """
-    
+    # Isolate features and target variables
     X = df.drop(columns=[target])
     y_obs = df[target]
     
+    # 
     X_scaled = scaler.transform(X)
-    
     y_pred = model.predict(X_scaled)
     
     results_df = pd.DataFrame({

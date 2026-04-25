@@ -15,7 +15,7 @@ def load_piezometer_data(filepath: str) -> pd.DataFrame:
     pd.DataFrame
         DataFrame with a Datetime index.
     """
-    # Skip technical metadata headers and set encoding for special characters
+    # Skip metadata headers and set encoding for special characters
     df = pd.read_csv(filepath, header=9, encoding='latin1')
 
     # Merge separate date and time columns into a single temporal object
@@ -59,7 +59,6 @@ def calculate_gw_metrics(df: pd.DataFrame, piezometer_config: dict) -> pd.DataFr
     df = df.rename(columns={'TEMPERATURE': f'{prefix}_gw-temp_degreeC'})
     df = df.drop(columns=['LEVEL'])
 
-    # Ensure all data is numeric for ML compatibility and round
     df = df.apply(pd.to_numeric, errors='coerce')
     df = df.round(3)
 
@@ -125,7 +124,6 @@ def load_datalogger_data(filepath: str, datalogger_config: dict, datalogger_vars
     df['Timestamps'] = pd.to_datetime(df['Timestamps'])
     df = df.set_index('Timestamps').sort_index()
     
-    # Ensure all data is numeric for ML compatibility and round
     df = df.apply(pd.to_numeric, errors='coerce')
     df = df.round(3)
 
