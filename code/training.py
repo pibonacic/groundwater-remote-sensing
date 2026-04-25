@@ -1,7 +1,5 @@
 import pandas as pd
-import matplotlib.pyplot as plt
 import numpy as np
-from numpy.polynomial import Polynomial
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import mean_squared_error, root_mean_squared_error, mean_absolute_error, r2_score
@@ -159,57 +157,3 @@ def apply_model(df: pd.DataFrame, target: str, scaler, model: RandomForestRegres
     }, index=df.index).sort_index()
 
     return results_df
-
-
-def plot_pred_vs_real(y_test: np.ndarray, y_pred: np.ndarray):
-    """
-    Plot observed vs predicted values with linear trend.
-
-    Parameters
-    ----------
-    y_test : np.ndarray
-        Observed target values.
-    y_pred : np.ndarray
-        Predicted target values.
-    """
-    y_test = np.array(y_test, dtype=float).flatten()
-    y_pred = np.array(y_pred, dtype=float).flatten()
-
-    plt.figure(figsize=(5,5))
-    plt.scatter(y_test, y_pred, s=2, c='#4C72B0', alpha=1)
-    plt.plot(y_test, y_test, label='1:1', c='black', linewidth=0.7)
-
-    # Linear regression
-    line = Polynomial.fit(y_test, y_pred, deg=1)
-    x_values = np.linspace(min(y_test), max(y_test), 100)
-    y_values = line(x_values)
-    plt.plot(x_values, y_values, label='Linear adjustment', linestyle='dashed', c='#4C72B0', alpha=1, linewidth=0.8)
-
-    plt.xlabel('Observed groundwater depth (m)')
-    plt.ylabel('Predicted groundwater depth (m)')
-    plt.grid(linestyle="--", alpha=0.7, linewidth=0.4)
-    plt.legend(fontsize=10)
-    plt.show()
-
-
-def plot_timeseries_results(df: pd.DataFrame):
-    """
-    Plot a timeseries comparison between observed values and model predictions.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe containing observed and predicted target values.
-    """
-    y_obs = df['Observed']
-    y_pred = df['Predicted']
-
-    plt.figure(figsize=(15, 6))
-    plt.plot(df.index, y_obs, label='Observed values', color='#4C72B0', linewidth=1)
-    plt.plot(df.index, y_pred, label='Model predictions', color='#C44E52', linewidth=1.5, linestyle='--')
-    
-    plt.ylabel('Groundwater depth (m)')
-    plt.legend()
-    plt.grid(True, alpha=0.2)
-    plt.tight_layout()
-    plt.show()
