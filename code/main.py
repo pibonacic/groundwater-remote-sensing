@@ -30,7 +30,7 @@ remote_df = handle_outliers(remote_df, 3.0)
 remote_df = handle_missing_values(remote_df, 'time')
 remote_df = smooth_remote_data(remote_df, None, 29, 2)
 
-# Feature selection
+# Features and target selection
 target = 'SDH1PS01_gw-depth_m'
 features = insitu_features + remote_features
 

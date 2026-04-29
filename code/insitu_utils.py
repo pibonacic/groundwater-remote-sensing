@@ -102,12 +102,20 @@ def load_datalogger_data(filepath: str, datalogger_config: dict, datalogger_vars
             raw_var = var_row[i]                # 'mm Precipitation', 'm3/m3 Water Content', ...
 
             # Split the raw variable in unit and variable name and standarize formats
-            parts = raw_var.split(' ', 1)
-            unit = parts[0].replace('_', '').replace('/', '')
-            var_name = parts[1].replace(' ', '-').lower()
+            parts = raw_var.strip().split(None, 1)
 
-            # Construct standarized column name (e.g. 'TEROS12-48cm_water-content_m3m3')
-            new_col_name = f'{prefix}_{var_name}_{unit}'
+            if len(parts) > 1:
+              # Standarize unit and var_name format
+              unit = parts[0].replace('_', '').replace('/', '')
+              var_name = parts[1].replace(' ', '-').lower()
+
+              # Construct standarized column name using variable and unit (e.g. 'TEROS12-48cm_water-content_m3m3')
+              new_col_name = f'{prefix}_{var_name}_{unit}'
+
+            # Manage variables without measurement unit (e.g. 'S2412_ndvi')
+            else:
+              var_name = parts[0].replace(' ', '-').lower()
+              new_col_name = f'{prefix}_{var_name}'
 
             # Only include the column if it's in a predefined list
             if new_col_name in datalogger_vars:
@@ -204,10 +212,17 @@ def aggregate_daily(df: pd.DataFrame, agg_rules: dict) -> pd.DataFrame:
     for col in df.columns:
         # Identify the rule for each column
         rule = agg_rules.get(col, 'mean')   # Default rule is set to 'mean'
-        
+
+        # Applies a sum aggregation
         if rule == 'sum':
             # Ensures that if a day has only NaNs, the result is NaN (not 0.0)
             agg_dict[col] = lambda x: x.sum(min_count=1)
+
+        # Applies a mean aggregation using only values > 0
+        elif rule == 'mean_positive':
+            agg_dict[col] = lambda x: x[x > 0].mean() if x[x > 0].count() > 0 else np.nan
+
+        # Applies the default rule
         else:
             agg_dict[col] = rule
     
