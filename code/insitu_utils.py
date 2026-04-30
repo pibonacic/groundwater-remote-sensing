@@ -64,7 +64,7 @@ def calculate_gw_metrics(df: pd.DataFrame, piezometer_config: dict) -> pd.DataFr
 
     return df
 
-def load_datalogger_data(filepath: str, datalogger_config: dict, datalogger_vars: list[str]) -> pd.DataFrame:
+def load_datalogger_data(filepath: str, datalogger_config: dict, datalogger_vars: dict) -> pd.DataFrame:
     """
     Parse multi-header datalogger files and extract specific variables by port. Assumes a specific CSV format.
 
@@ -96,10 +96,14 @@ def load_datalogger_data(filepath: str, datalogger_config: dict, datalogger_vars
         port = port_row[i]  # 'Port1', 'Port2', ...
 
         if port in datalogger_config:
+
             # Extract the metadata from the config...
             prefix = datalogger_config[port]    # 'ATMOS41', 'TEROS12-48cm', ...
             # ... and the current row
             raw_var = var_row[i]                # 'mm Precipitation', 'm3/m3 Water Content', ...
+
+            # Identify the base sensor from the prefix ('ATMOS41', 'TEROS12', 'TEROS21')
+            base_sensor = prefix.split('-')[0]
 
             # Split the raw variable in unit and variable name and standarize formats
             parts = raw_var.strip().split(None, 1)
@@ -108,17 +112,15 @@ def load_datalogger_data(filepath: str, datalogger_config: dict, datalogger_vars
               # Standarize unit and var_name format
               unit = parts[0].replace('_', '').replace('/', '')
               var_name = parts[1].replace(' ', '-').lower()
-
-              # Construct standarized column name using variable and unit (e.g. 'TEROS12-48cm_water-content_m3m3')
-              new_col_name = f'{prefix}_{var_name}_{unit}'
+              formatted_var = f'{var_name}_{unit}'
 
             # Manage variables without measurement unit (e.g. 'S2412_ndvi')
             else:
               var_name = parts[0].replace(' ', '-').lower()
-              new_col_name = f'{prefix}_{var_name}'
-
-            # Only include the column if it's in a predefined list
-            if new_col_name in datalogger_vars:
+              formatted_var = f'{var_name}_{unit}'
+              
+            if base_sensor in datalogger_vars and formatted_var in datalogger_vars[base_sensor]:
+                new_col_name = f'{prefix}_{formatted_var}'
                 cols_to_keep.append(i)
                 rename_dict[i] = new_col_name
         

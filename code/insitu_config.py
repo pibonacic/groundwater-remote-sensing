@@ -156,44 +156,76 @@ datalogger_config = {
     }
 }
 
+datalogger_vars = {
+    'ATMOS41': [
+        'precipitation_mm',
+        'solar-radiation_Wm2',
+        'wind-speed_ms',
+        'air-temperature_degreeC',
+        'atmospheric-pressure_kPa'
+    ],
+    'TEROS12': [
+        'water-content_m3m3',
+        'soil-temperature_degreeC',
+        'saturation-extract-ec_mScm'
+    ],
+    'TEROS21': [
+        'soil-temperature_degreeC',
+        'matric-potential_kPa'
+    ],
+    'SI411': [
+        'target-temperature_degreeC'
+    ],
+    'S2411': [
+        '650-nm-irradiance_Wm-2nm-1',
+        '810-nm-irradiance_Wm-2nm-1'
+    ],
+    'S2412': [
+        '650-nm-radiance_Wm-2nm-1sr-1',
+        '810-nm-radiance_Wm-2nm-1sr-1',
+        'ndvi'
+    ]
+}
+
+
 # List of standarized column names
-datalogger_vars = [
-    'ATMOS41_precipitation_mm',
-    'ATMOS41_solar-radiation_Wm2',
-    'ATMOS41_wind-speed_ms',
-    'ATMOS41_air-temperature_degreeC',
-    'SI411_target-temperature_degreeC',
-    'TEROS12-05cm_water-content_m3m3',
-    'TEROS12-05cm_soil-temperature_degreeC',
-    'TEROS12-05cm_saturation-extract-ec_mScm',
-    'TEROS12-15cm_water-content_m3m3',
-    'TEROS12-15cm_soil-temperature_degreeC',
-    'TEROS12-15cm_saturation-extract-ec_mScm',
-    'TEROS12-30cm_water-content_m3m3',
-    'TEROS12-30cm_soil-temperature_degreeC',
-    'TEROS12-30cm_saturation-extract-ec_mScm',
-    'TEROS12-48cm_water-content_m3m3',
-    'TEROS12-48cm_soil-temperature_degreeC',
-    'TEROS12-48cm_saturation-extract-ec_mScm',
-    'TEROS21-25cm_soil-temperature_degreeC',
-    'TEROS21-35cm_soil-temperature_degreeC',
-    'S2411_650-nm-irradiance_Wm-2nm-1',
-    'S2411_810-nm-irradiance_Wm-2nm-1',
-    'S2412_650-nm-radiance_Wm-2nm-1sr-1',
-    'S2412_810-nm-radiance_Wm-2nm-1sr-1',
-    'S2412_ndvi',
-    'TEROS12-18cm_water-content_m3m3',
-    'TEROS12-18cm_soil-temperature_degreeC',
-    'TEROS12-18cm_saturation-extract-ec_mScm',
-    'TEROS12-45cm_water-content_m3m3',
-    'TEROS12-45cm_soil-temperature_degreeC',
-    'TEROS12-45cm_saturation-extract-ec_mScm',
-    'TEROS12-65cm_water-content_m3m3',
-    'TEROS12-65cm_soil-temperature_degreeC',
-    'TEROS12-65cm_saturation-extract-ec_mScm',
-    'TEROS21-31cm_soil-temperature_degreeC',
-    'TEROS21-55cm_soil-temperature_degreeC'
-]
+# datalogger_vars = [
+#     'ATMOS41_precipitation_mm',
+#     'ATMOS41_solar-radiation_Wm2',
+#     'ATMOS41_wind-speed_ms',
+#     'ATMOS41_air-temperature_degreeC',
+#     'SI411_target-temperature_degreeC',
+#     'TEROS12-05cm_water-content_m3m3',
+#     'TEROS12-05cm_soil-temperature_degreeC',
+#     'TEROS12-05cm_saturation-extract-ec_mScm',
+#     'TEROS12-15cm_water-content_m3m3',
+#     'TEROS12-15cm_soil-temperature_degreeC',
+#     'TEROS12-15cm_saturation-extract-ec_mScm',
+#     'TEROS12-30cm_water-content_m3m3',
+#     'TEROS12-30cm_soil-temperature_degreeC',
+#     'TEROS12-30cm_saturation-extract-ec_mScm',
+#     'TEROS12-48cm_water-content_m3m3',
+#     'TEROS12-48cm_soil-temperature_degreeC',
+#     'TEROS12-48cm_saturation-extract-ec_mScm',
+#     'TEROS21-25cm_soil-temperature_degreeC',
+#     'TEROS21-35cm_soil-temperature_degreeC',
+#     'S2411_650-nm-irradiance_Wm-2nm-1',
+#     'S2411_810-nm-irradiance_Wm-2nm-1',
+#     'S2412_650-nm-radiance_Wm-2nm-1sr-1',
+#     'S2412_810-nm-radiance_Wm-2nm-1sr-1',
+#     'S2412_ndvi',
+#     'TEROS12-18cm_water-content_m3m3',
+#     'TEROS12-18cm_soil-temperature_degreeC',
+#     'TEROS12-18cm_saturation-extract-ec_mScm',
+#     'TEROS12-45cm_water-content_m3m3',
+#     'TEROS12-45cm_soil-temperature_degreeC',
+#     'TEROS12-45cm_saturation-extract-ec_mScm',
+#     'TEROS12-65cm_water-content_m3m3',
+#     'TEROS12-65cm_soil-temperature_degreeC',
+#     'TEROS12-65cm_saturation-extract-ec_mScm',
+#     'TEROS21-31cm_soil-temperature_degreeC',
+#     'TEROS21-55cm_soil-temperature_degreeC'
+# ]
 
 # List of variables to exclude from z-score filtering
 no_outlier_check = ['ATMOS41_precipitation_mm']
