@@ -117,7 +117,7 @@ def load_datalogger_data(filepath: str, datalogger_config: dict, datalogger_vars
             # Manage variables without measurement unit (e.g. 'S2412_ndvi')
             else:
               var_name = parts[0].replace(' ', '-').lower()
-              formatted_var = f'{var_name}_{unit}'
+              formatted_var = f'{var_name}'
               
             if base_sensor in datalogger_vars and formatted_var in datalogger_vars[base_sensor]:
                 new_col_name = f'{prefix}_{formatted_var}'
@@ -223,6 +223,17 @@ def aggregate_daily(df: pd.DataFrame, agg_rules: dict) -> pd.DataFrame:
         # Applies a mean aggregation using only values > 0
         elif rule == 'mean_positive':
             agg_dict[col] = lambda x: x[x > 0].mean() if x[x > 0].count() > 0 else np.nan
+        
+        # Applies a circular mean aggregation for directions
+        elif rule == 'circular_mean':
+            agg_dict[col] = lambda x: (
+                np.rad2deg(
+                    np.arctan2(
+                        np.sin(np.deg2rad(x.dropna())).mean(),
+                        np.cos(np.deg2rad(x.dropna())).mean()
+                    )
+                ) + 360
+            ) % 360 if x.dropna().count() > 0 else np.nan
 
         # Applies the default rule
         else:
