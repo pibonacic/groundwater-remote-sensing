@@ -50,8 +50,8 @@ def calculate_gw_metrics(df: pd.DataFrame, piezometer_config: dict) -> pd.DataFr
 
     # Calculate actual water depth from raw 'LEVEL'. Multiply by -1 to represent a negative height.
     gw_depth = (piezometer_config['sensor_depth'] - df['LEVEL']) * -1
-    # Reference depth to mean sea level
-    gw_level = piezometer_config['elevation'] - gw_depth
+    # Reference depth to mean sea level. Sum a negative height to equal a substraction
+    gw_level = piezometer_config['elevation'] + gw_depth
 
     # Format columns names and remove raw data
     df[f'{prefix}_gw-depth_m'] = gw_depth
@@ -139,7 +139,7 @@ def load_datalogger_data(filepath: str, datalogger_config: dict, datalogger_vars
 
     return df
 
-def remove_campaign_outliers(df: pd.DataFrame, campaigns: list[tuple], ignore_vars: list[str], z_thresh: float=3.0) -> pd.DataFrame:
+def remove_campaign_outliers(df: pd.DataFrame, campaigns: list[tuple], ignore_vars: list[str], z_thresh: float=3.0, days_buffer: int=0) -> pd.DataFrame:
     """
     Detect and mask outliers within specific date ranges using a Z-score threshold.
 
@@ -153,6 +153,8 @@ def remove_campaign_outliers(df: pd.DataFrame, campaigns: list[tuple], ignore_va
         Columns to exclude from outlier detection (e.g. precipitation).
     z_thresh : float, default=3.0
         Z-score threshold beyond which values are replaced by NaN.
+    days_buffer : int, default=0
+        Number of days to expand the campaign window in both directions (+- n days).
 
     Returns
     -------
@@ -164,17 +166,21 @@ def remove_campaign_outliers(df: pd.DataFrame, campaigns: list[tuple], ignore_va
     # Loop through each study campaign
     for start_date, end_date in campaigns:
 
+        # Expand the campaing window +- n days
+        adjusted_start = pd.to_datetime(start_date) - pd.Timedelta(days=days_buffer)
+        adjusted_end = pd.to_datetime(end_date) + pd.Timedelta(days=days_buffer)
+
         # Isolate the time window for the current campaign
-        mask_time = (df_clean.index >= start_date) & (df_clean.index <= end_date)
+        mask_time = (df_clean.index >= adjusted_start) & (df_clean.index <= adjusted_end)
         if not mask_time.any():
             continue    # Skip if no data exists for this specific date range
         
-        # Select only 'normal' distributed numeric columns (e.g. excluding precipitation)
+        # Select only normal distributed numeric columns (e.g. excluding precipitation)
         cols_to_check = [c for c in df_clean.columns if c not in ignore_vars]
         if not cols_to_check:
             continue
         
-        # Isolate the data slice for this campaign to calculate 'local' statistics
+        # Isolate the data slice for this campaign to calculate local statistics
         df_slice = df_clean.loc[mask_time, cols_to_check]
 
         # Calculate Z-scores

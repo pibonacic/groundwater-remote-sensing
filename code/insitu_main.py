@@ -41,7 +41,7 @@ for site_name, site_devices in sites_config.items():
             # Concatenate records and apply the processing pipeline
             full_df = pd.concat(raw_dfs, axis=0).sort_index()
             metrics_df = calculate_gw_metrics(full_df, properties)
-            clean_df = remove_campaign_outliers(metrics_df, campaigns, no_outlier_check)
+            clean_df = remove_campaign_outliers(metrics_df, campaigns, no_outlier_check, 3, 10)
             daily_df = aggregate_daily(clean_df, aggregation_rules)
 
             # Store the daily aggregated time series in a dictionary, keyed by piezo name
