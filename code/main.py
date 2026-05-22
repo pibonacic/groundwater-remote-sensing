@@ -5,7 +5,7 @@ Description:
 
 from config import insitu_features, remote_features, no_outlier_check
 
-from preparation import load_and_prepare_data, handle_duplicate_values, handle_outliers, reindex_daily, handle_missing_values, smooth_remote_data, merge_datasets, slice_by_dates, preprocess_for_ML
+from preparation import load_and_prepare_data, handle_duplicate_values, handle_outliers, reindex_daily, handle_missing_values, smooth_remote_data, merge_datasets, slice_by_dates, add_time_features, preprocess_for_ML, preprocess_for_ML_chrono
 from training import tune_model, train_model, evaluate_model, apply_model
 from plotting import obs_data, plot_pred_vs_real, plot_timeseries_results
 from shap_analysis import calculate_shap_values, plot_shap
@@ -16,7 +16,7 @@ from shap_analysis import calculate_shap_values, plot_shap
 # -----------------------------
 
 # Insitu data preparation pipeline
-insitu_df = load_and_prepare_data('../data/processed/in-situ/daily-insitu-data.csv')
+insitu_df = load_and_prepare_data('../data/processed/in-situ/SDH1_daily-insitu-data.csv')
 insitu_df = handle_duplicate_values(insitu_df)
 insitu_df = reindex_daily(insitu_df)
 insitu_df = handle_outliers(insitu_df, 3.0, no_outlier_check)
@@ -37,15 +37,18 @@ features = insitu_features + remote_features
 # Merged data pipeline
 fused_df = merge_datasets(insitu_df, remote_df)
 fused_df = fused_df[features]
+fused_df = add_time_features(fused_df)
 fused_df = handle_missing_values(fused_df, 'drop')
-#fused_df = slice_by_dates(fused_df, '2024-05-25', '2026-01-25')
+fused_df = slice_by_dates(fused_df, '2024-06-01', '2026-01-01')
 
 # Data inspection
 obs_data(fused_df)
 
 # Data preparation for ML
-X_train_scaled, X_test_scaled, y_train, y_test, scaler = preprocess_for_ML(fused_df, target = target, test_size = 0.2, random_state = 42)
+X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates = preprocess_for_ML(fused_df, target = target, test_size = 0.2, random_state = 42)
 
+# Data preparation for ML (chronological split)
+X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates = preprocess_for_ML_chrono(fused_df, target = target, train_size = 0.7)
 
 # -----------------------------
 # 2. Model training
@@ -58,13 +61,13 @@ model = train_model(X_train_scaled, y_train,
                     # best_params=best_params
                     )
 
-y_pred, results = evaluate_model(model, X_test_scaled, y_test)
+y_pred_test, y_pred_train, results_test, results_train = evaluate_model(model, X_test_scaled, y_test, X_train_scaled, y_train)
 
 results_df = apply_model(fused_df, target, scaler, model)
 
 results_df.to_csv('../outputs/obs_pred.csv')
 
-plot_pred_vs_real(y_test, y_pred)
+plot_pred_vs_real(y_test, y_pred_test)
 
 plot_timeseries_results(results_df)
 

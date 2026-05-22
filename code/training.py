@@ -81,16 +81,54 @@ def train_model(X_train_scaled: pd.DataFrame, y_train: np.ndarray,
     else:
         model = RandomForestRegressor(random_state=random_state)
 
-    # Train the final Random Forest model on the scaled training set
+    # Train the final random forest model on the scaled training set
     model.fit(X_train_scaled, y_train)
 
     return model
 
 
+# def evaluate_model(model: RandomForestRegressor,
+#                    X_test_scaled: pd.DataFrame, y_test: np.ndarray) -> tuple[np.ndarray, dict]:
+#     """
+#     Evaluate model predictions and return regression metrics.
+
+#     Parameters
+#     ----------
+#     model : RandomForestRegressor
+#         Trained model.
+#     X_test_scaled : pd.DataFrame
+#         Scaled testing features.
+#     y_test : np.ndarray
+#         Observed target values.
+
+#     Returns
+#     ----------
+#     y_pred : np.ndarray
+#         Model predictions.
+#     metrics : dict
+#         Dictionary containing MSE, RMSE, MAE, R2 and PBIAS
+#     """
+#     # Generate predictions applying the model to the unseen test features
+#     y_pred = model.predict(X_test_scaled)
+
+#     metrics = {
+#         'MSE': mean_squared_error(y_test, y_pred),
+#         'RMSE': root_mean_squared_error(y_test, y_pred),
+#         'MAE' : mean_absolute_error(y_test, y_pred),
+#         'R2': r2_score(y_test, y_pred),
+#         'PBIAS': pbias(y_pred, y_test)
+#     }
+
+#     print('Model performance: ', metrics)
+#     return y_pred, metrics
+
+
 def evaluate_model(model: RandomForestRegressor,
-                   X_test_scaled: pd.DataFrame, y_test: np.ndarray) -> tuple[np.ndarray, dict]:
+                   X_test_scaled: pd.DataFrame, y_test: np.ndarray,
+                   X_train_scaled, y_train) -> tuple[np.ndarray, dict]:
     """
-    Evaluate model predictions and return regression metrics.
+    Evaluate model predictions and return regression metrics for 
+    testing and training subsets.
 
     Parameters
     ----------
@@ -103,24 +141,41 @@ def evaluate_model(model: RandomForestRegressor,
 
     Returns
     ----------
-    y_pred : np.ndarray
-        Model predictions.
-    metrics : dict
-        Dictionary containing MSE, RMSE, MAE, R2 and PBIAS
+    y_pred_test : np.ndarray
+        Model predictions for the testing subset.
+    y_pred_train : np.ndarray
+        Model predictions for the training subset.
+    metrics_test : dict
+        Dictionary containing MSE, RMSE, MAE, R2 and PBIAS for testing subset.
+    metrics_train : dict
+        Dictionary containing MSE, RMSE, MAE, R2 and PBIAS for training subset.
     """
     # Generate predictions applying the model to the unseen test features
-    y_pred = model.predict(X_test_scaled)
+    y_pred_test = model.predict(X_test_scaled)
 
-    metrics = {
-        'MSE': mean_squared_error(y_test, y_pred),
-        'RMSE': root_mean_squared_error(y_test, y_pred),
-        'MAE' : mean_absolute_error(y_test, y_pred),
-        'R2': r2_score(y_test, y_pred),
-        'PBIAS': pbias(y_pred, y_test)
+    metrics_test = {
+        'MSE': mean_squared_error(y_test, y_pred_test),
+        'RMSE': root_mean_squared_error(y_test, y_pred_test),
+        'MAE' : mean_absolute_error(y_test, y_pred_test),
+        'R2': r2_score(y_test, y_pred_test),
+        'PBIAS': pbias(y_pred_test, y_test)
     }
 
-    print('Model performance: ', metrics)
-    return y_pred, metrics
+    # Generate predictions applying the model to the train features
+    y_pred_train = model.predict(X_train_scaled)
+
+    metrics_train = {
+        'MSE': mean_squared_error(y_train, y_pred_train),
+        'RMSE': root_mean_squared_error(y_train, y_pred_train),
+        'MAE' : mean_absolute_error(y_train, y_pred_train),
+        'R2': r2_score(y_train, y_pred_train),
+        'PBIAS': pbias(y_pred_train, y_train)
+    }
+
+    print('Model performance (testing): ', metrics_test)
+    print('Model performance (training): ', metrics_train)
+
+    return y_pred_test, y_pred_train, metrics_test, metrics_train
 
 
 def apply_model(df: pd.DataFrame, target: str, scaler, model: RandomForestRegressor) -> pd.DataFrame:
@@ -147,10 +202,13 @@ def apply_model(df: pd.DataFrame, target: str, scaler, model: RandomForestRegres
     X = df.drop(columns=[target])
     y_obs = df[target]
     
-    # 
+    # Standarize features with scaler used during training
     X_scaled = scaler.transform(X)
+
+    # Produce a prediction with the trained model
     y_pred = model.predict(X_scaled)
     
+    # Store the observed and predicted values in a new DataFrame
     results_df = pd.DataFrame({
         'Observed': y_obs,
         'Predicted': y_pred

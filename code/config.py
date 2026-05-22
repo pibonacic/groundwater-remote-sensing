@@ -19,20 +19,20 @@ insitu_features = [
 
 remote_features = [
     's2_B2',
-    # 's2_B3',
-    # 's2_B4',
-    # 's2_B8',
-    # 's2_B11',
-    # 's2_B12',
+    's2_B3',
+    's2_B4',
+    's2_B8',
+    's2_B11',
+    's2_B12',
     's2_ndvi',
     's2_ndwi',
     's2_mndwi',
     's2_ndmi',
     's2_ndmi2',
     's2_str',
-    # 's2_brightness',
-    # 's2_greenness',
-    # 's2_wetness'
+    's2_brightness',
+    's2_greenness',
+    's2_wetness'
 ]
 
 # List of variables to exclude from z-score filtering

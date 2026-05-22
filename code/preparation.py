@@ -236,6 +236,21 @@ def slice_by_dates(df: pd.DataFrame, startDate: str = None, endDate: str = None)
     return df_copy
 
 
+def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    
+    """
+    df_copy = df.copy()
+
+    doy = df_copy.index.dayofyear
+
+    #df_copy['doy'] = doy
+    df_copy['doy_sin'] = np.sin(2*np.pi*doy/365.25)
+    #df_copy['doy_cos'] = np.cos(2*np.pi*doy/365.25)
+    
+    return df_copy
+
+
 def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, random_state: int = 42):
     """
     Preprocess the dataset for machine learning.
@@ -277,6 +292,9 @@ def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, ran
     # Split data for training and testing. Random seed is defined for reproducibility
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
 
+    # Save test data dates
+    test_dates = y_test.index
+
     print("Training data: ")
     print("Count x: ", X_train.count())
     print("Count y: ", y_train.count())
@@ -295,4 +313,47 @@ def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, ran
     y_train = y_train.to_numpy().ravel()
     y_test = y_test.to_numpy().ravel()
     
-    return X_train_scaled, X_test_scaled, y_train, y_test, scaler
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates
+
+
+def preprocess_for_ML_chrono(df: pd.DataFrame, target: str, train_size: float = 0.6):
+  """
+  Preprocess the dataset for ML using a chronological split.
+
+  Steps:
+  1. Calculate the split point based on the specified train_size.
+  2. Divide the data into training (first part) and testing (remainder) sets.
+  3. Standardize features using only training statistics to avoid leakage.
+
+    ...
+
+  """
+  # Define features (X) and target (y)
+  X = df.drop(columns=[target])
+  y = df[target]
+
+  # Calculate the integer index for the chronological split
+  split_idx = int(len(df) * train_size)
+
+  # Split data maintaining temporal order
+  X_train = X.iloc[:split_idx]
+  X_test = X.iloc[split_idx:]
+  y_train = y.iloc[:split_idx]
+  y_test = y.iloc[split_idx:]
+
+  # Store dates for future time-series visualization
+  test_dates = y_test.index
+
+  print(f"Chronological split applied at: {y_train.index[-1].date()}")
+  print(f"Training samples: {len(X_train)} | Testing samples: {len(X_test)}")
+
+  # Standardize: Fit on training data and transform both sets
+  scaler = StandardScaler()
+  X_train_scaled = scaler.fit_transform(X_train)
+  X_test_scaled = scaler.transform(X_test)
+
+  # Flatten targets for Scikit-Learn compatibility
+  y_train = y_train.to_numpy().ravel()
+  y_test = y_test.to_numpy().ravel()
+
+  return X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates
