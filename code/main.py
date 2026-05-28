@@ -5,7 +5,7 @@ Description:
 
 from config import insitu_features, remote_features, no_outlier_check
 
-from preparation import load_and_prepare_data, handle_duplicate_values, handle_outliers, reindex_daily, handle_missing_values, smooth_remote_data, merge_datasets, slice_by_dates, add_time_features, preprocess_for_ML, preprocess_for_ML_chrono
+from preparation import load_and_prepare_data, handle_duplicate_values, handle_outliers, reindex_daily, handle_missing_values, calculate_stats_from_random_points, smooth_data, merge_datasets, slice_by_dates, add_time_features, preprocess_for_ML, preprocess_for_ML_chrono
 from training import tune_model, train_model, evaluate_model, apply_model
 from plotting import obs_data, plot_pred_vs_real, plot_timeseries_results
 from shap_analysis import calculate_shap_values, plot_shap
@@ -28,7 +28,7 @@ remote_df = handle_duplicate_values(remote_df)
 remote_df = reindex_daily(remote_df)
 remote_df = handle_outliers(remote_df, 3.0)
 remote_df = handle_missing_values(remote_df, 'time')
-remote_df = smooth_remote_data(remote_df, None, 29, 2)
+remote_df = smooth_data(remote_df, None, 29, 2)
 
 # Features and target selection
 target = 'SDH1PS01_gw-depth_m'

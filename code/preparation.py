@@ -149,7 +149,57 @@ def handle_missing_values(df: pd.DataFrame, strategy: str = 'drop') -> pd.DataFr
         raise ValueError('Strategy not supported')
 
 
-def smooth_remote_data(df: pd.DataFrame, cols: list = None, window_length: int = 11, polyorder: int = 2) -> pd.DataFrame:
+# NO ESTA FUNCIONADO AL 100; NO FILTRA CORRECTAMENTE LAS FECHAS CON MENOS DE 10 OBS VALIDAS
+def calculate_stats_from_random_points(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate summary statistics for multiple spectral features across multiple points
+    preserving Datetime index. At least 10 valid (non-NaN) points per date are needed.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe containing spectral feature columns with point suffixes 
+        (e.g., feature_p01, feature_p02, ..., feature_pN) and a DatetimeIndex.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with the same DatetimeIndex, containing 7 statistical columns 
+        (mean, std, median, max, min, p25, p75) for each identified feature.
+    """
+    # Extract unique feature names from the df columns
+    columns = df.columns
+    feature_names = set(col.split('_p')[0] for col in columns if '_p' in col)
+
+    # Dictionary to store the calculated series
+    stats_results = {}
+
+    # Iterate over each individual feature
+    for feature in feature_names:
+        # Create a subset of columns that belong to the current feature (e.g ndvi_p1, ..., ndvi_pN)
+        feature_columns = [col for col in df.columns if col.startswith(f'{feature}_p')]
+        feature_data = df[feature_columns]
+
+        # Identify and keep rows (dates) that have at least N valid points
+        valid_rows_mask = feature_data.notna().sum(axis=1) >= 10
+        valid_rows = feature_data[valid_rows_mask]
+
+        # Calculate statistics row-wise (axis=1) across all points
+        stats_results[f'{feature}_mean'] = valid_rows.mean(axis=1)
+        stats_results[f'{feature}_std'] = valid_rows.std(axis=1)
+        stats_results[f'{feature}_median'] = valid_rows.median(axis=1)
+        stats_results[f'{feature}_max'] = valid_rows.max(axis=1)
+        stats_results[f'{feature}_min'] = valid_rows.min(axis=1)
+        stats_results[f'{feature}_p25'] = valid_rows.quantile(0.25, axis=1)
+        stats_results[f'{feature}_p75'] = valid_rows.quantile(0.75, axis=1)
+
+    # Construct the final dataframe maintaining the original datetime index
+    output_df = pd.DataFrame(stats_results, index=df.index)
+
+    return output_df
+
+
+def smooth_data(df: pd.DataFrame, cols: list = None, window_length: int = 11, polyorder: int = 2) -> pd.DataFrame:
     """
     Apply a Savitzky-Golay filter to smooth a subset of columns in a DataFrame while preserving trends.
 
