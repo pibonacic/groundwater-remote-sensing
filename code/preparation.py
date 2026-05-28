@@ -150,7 +150,7 @@ def handle_missing_values(df: pd.DataFrame, strategy: str = 'drop') -> pd.DataFr
 
 
 # NO ESTA FUNCIONADO AL 100; NO FILTRA CORRECTAMENTE LAS FECHAS CON MENOS DE 10 OBS VALIDAS
-def calculate_stats_from_random_points(df: pd.DataFrame) -> pd.DataFrame:
+def calculate_stats_from_random_points(df: pd.DataFrame, minPoints: int = 10) -> pd.DataFrame:
     """
     Calculate summary statistics for multiple spectral features across multiple points
     preserving Datetime index. At least 10 valid (non-NaN) points per date are needed.
@@ -170,6 +170,7 @@ def calculate_stats_from_random_points(df: pd.DataFrame) -> pd.DataFrame:
     # Extract unique feature names from the df columns
     columns = df.columns
     feature_names = set(col.split('_p')[0] for col in columns if '_p' in col)
+    feature_names = sorted(list(feature_names))
 
     # Dictionary to store the calculated series
     stats_results = {}
@@ -181,17 +182,17 @@ def calculate_stats_from_random_points(df: pd.DataFrame) -> pd.DataFrame:
         feature_data = df[feature_columns]
 
         # Identify and keep rows (dates) that have at least N valid points
-        valid_rows_mask = feature_data.notna().sum(axis=1) >= 10
-        valid_rows = feature_data[valid_rows_mask]
+        valid_rows_mask = feature_data.notna().sum(axis=1) >= minPoints
+        valid_feature_data = feature_data.where(valid_rows_mask, axis=0)
 
         # Calculate statistics row-wise (axis=1) across all points
-        stats_results[f'{feature}_mean'] = valid_rows.mean(axis=1)
-        stats_results[f'{feature}_std'] = valid_rows.std(axis=1)
-        stats_results[f'{feature}_median'] = valid_rows.median(axis=1)
-        stats_results[f'{feature}_max'] = valid_rows.max(axis=1)
-        stats_results[f'{feature}_min'] = valid_rows.min(axis=1)
-        stats_results[f'{feature}_p25'] = valid_rows.quantile(0.25, axis=1)
-        stats_results[f'{feature}_p75'] = valid_rows.quantile(0.75, axis=1)
+        stats_results[f'{feature}_mean'] = valid_feature_data.mean(axis=1)
+        stats_results[f'{feature}_std'] = valid_feature_data.std(axis=1)
+        stats_results[f'{feature}_median'] = valid_feature_data.median(axis=1)
+        stats_results[f'{feature}_max'] = valid_feature_data.max(axis=1)
+        stats_results[f'{feature}_min'] = valid_feature_data.min(axis=1)
+        stats_results[f'{feature}_p25'] = valid_feature_data.quantile(0.25, axis=1)
+        stats_results[f'{feature}_p75'] = valid_feature_data.quantile(0.75, axis=1)
 
     # Construct the final dataframe maintaining the original datetime index
     output_df = pd.DataFrame(stats_results, index=df.index)
