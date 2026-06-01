@@ -4,6 +4,7 @@ from scipy.stats import zscore
 from scipy.signal import savgol_filter
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+from typing import List
 
 
 def load_and_prepare_data(filepath: str, index_col: str='Timestamps', date_format: str='%Y-%m-%d', sep: str=',') -> pd.DataFrame:
@@ -287,19 +288,52 @@ def slice_by_dates(df: pd.DataFrame, startDate: str = None, endDate: str = None)
     return df_copy
 
 
-def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
+def add_time(df: pd.DataFrame) -> pd.DataFrame:
     """
     
     """
     df_copy = df.copy()
 
+    # Extract the day of year from the Datetime index
     doy = df_copy.index.dayofyear
 
+    # Calculate time representations and add them as new columns
     #df_copy['doy'] = doy
     df_copy['doy_sin'] = np.sin(2*np.pi*doy/365.25)
     #df_copy['doy_cos'] = np.cos(2*np.pi*doy/365.25)
     
     return df_copy
+
+
+def add_lags(df:pd.DataFrame, features: List[str], lags: List[int]) -> pd.DataFrame:
+    """
+    
+    """
+    # Initialize a list with the original df
+    dfs_to_concat = [df]
+
+    # Iterate over each feature in the list
+    for feature in features:
+        
+        # Iterate over each lag in the list
+        lagged_columns = {}
+        for lag in lags:
+            # Generate a column for the current feature shifted by the current lag 
+            lagged_columns[f'{feature}_lag_{lag}'] = df[feature].shift(periods=lag)
+
+        # Store the columns in a new df
+        feature_lags_df = pd.DataFrame(lagged_columns, index=df.index)
+
+        # Add the current lagged feature df to the list
+        dfs_to_concat.append(feature_lags_df)
+
+    # Concatenate all dataframes horizontally (axis=1)
+    output_df = pd.concat(dfs_to_concat, axis=1)
+
+    # Drop rows with NaN at the beggining of the series
+    output_df = output_df.dropna()
+
+    return output_df
 
 
 def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, random_state: int = 42):
