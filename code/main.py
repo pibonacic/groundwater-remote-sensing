@@ -44,7 +44,7 @@ fused_df = handle_missing_values(fused_df, 'drop')
 fused_df = slice_by_dates(fused_df, '2024-05-22', '2026-01-24')
 
 # Data inspection
-obs_data(fused_df)
+#obs_data(fused_df)
 
 # Data preparation for ML
 #X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates = preprocess_for_ML(fused_df, target = target, test_size = 0.2, random_state = 42)

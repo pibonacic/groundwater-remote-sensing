@@ -92,7 +92,9 @@ datalogger_config = {
     'z6-24392': {
         # Nested by config version to handle port changes over time
         'Configuration 9': {
-            'Port2': 'ATMOS41'
+            'Port2': 'ATMOS41',
+            'Port5': 'SI411',
+            'Port6': 'TEROS12-05cm'
         },
         'Configuration 10': {
             'Port1': 'S2411',
