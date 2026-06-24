@@ -3,7 +3,7 @@ Author: Pedro Bonacic Vera
 Description:
 """
 
-from config import insitu_features, remote_features, no_outlier_check
+from config import insitu_features1, insitu_features2, remote_features, no_outlier_check
 
 from preparation import load_and_prepare_data, handle_duplicate_values, handle_outliers, reindex_daily, handle_missing_values, calculate_stats_from_random_points, smooth_data, merge_datasets, slice_by_dates, add_time, add_lags, preprocess_for_ML, preprocess_for_ML_chrono
 from training import tune_model, train_model, evaluate_model, apply_model
@@ -12,18 +12,36 @@ from shap_analysis import calculate_shap_values, plot_shap
 
 
 # -----------------------------
+# 0. Select study site
+# -----------------------------
+
+study_site = 'SDH1'
+
+if study_site == 'SDH1':
+    insitu_features = insitu_features1
+    target = 'SDH1PS01_gw-depth_m'
+    insitu_filepath = '../data/processed/in-situ/SDH1_daily-insitu-data.csv'
+    remote_filepath = '../data/processed/satellites/SDH1_S2_20m_2023-10_2026-06.csv'
+
+elif study_site == 'SDH2':
+    insitu_features = insitu_features2
+    target = 'SDH2PP01_gw-depth_m'
+    insitu_filepath = '../data/processed/in-situ/SDH2_daily-insitu-data.csv'
+    remote_filepath = '../data/processed/satellites/SDH2_S2_20m_2023-10_2026-06.csv'
+
+# -----------------------------
 # 1. Load and prepare data
 # -----------------------------
 
 # Insitu data preparation pipeline
-insitu_df = load_and_prepare_data('../data/processed/in-situ/SDH1_daily-insitu-data.csv')
+insitu_df = load_and_prepare_data(insitu_filepath)
 insitu_df = handle_duplicate_values(insitu_df)
 insitu_df = reindex_daily(insitu_df)
 insitu_df = handle_outliers(insitu_df, 3.0, no_outlier_check)
 insitu_df = handle_missing_values(insitu_df, 'time')
 
 # Remote data preparation pipeline
-remote_df = load_and_prepare_data('../data/processed/satellites/Sentinel2_bands_indices_TCT_20m_202405-202605.csv')
+remote_df = load_and_prepare_data(remote_filepath)
 remote_df = handle_duplicate_values(remote_df)
 remote_df = reindex_daily(remote_df)
 remote_df = handle_outliers(remote_df, 3.0)
@@ -32,16 +50,16 @@ remote_df = calculate_stats_from_random_points(remote_df, 10)
 remote_df = smooth_data(remote_df, None, 7, 2)
 
 # Features and target selection
-target = 'SDH1PS01_gw-depth_m'
+# target = target
 features = insitu_features + remote_features
 
 # Merged data pipeline
 fused_df = merge_datasets(insitu_df, remote_df)
 fused_df = fused_df[features]
-fused_df = add_lags(fused_df, remote_features, [1, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30])
+fused_df = add_lags(fused_df, remote_features, list(range(1, 32, 2)))
 fused_df = add_time(fused_df)
 fused_df = handle_missing_values(fused_df, 'drop')
-fused_df = slice_by_dates(fused_df, '2024-05-22', '2026-01-24')
+fused_df = slice_by_dates(fused_df, '2024-05-22', '2026-05-15')
 
 # Data inspection
 #obs_data(fused_df)
@@ -50,7 +68,7 @@ fused_df = slice_by_dates(fused_df, '2024-05-22', '2026-01-24')
 #X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates = preprocess_for_ML(fused_df, target = target, test_size = 0.2, random_state = 42)
 
 # Data preparation for ML (chronological split)
-X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates = preprocess_for_ML_chrono(fused_df, target = target, train_size = 0.6)
+X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates = preprocess_for_ML_chrono(fused_df, target = target, train_size = 0.5)
 
 # -----------------------------
 # 2. Model training

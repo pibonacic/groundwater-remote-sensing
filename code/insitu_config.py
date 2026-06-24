@@ -91,39 +91,48 @@ datalogger_config = {
     # North site SDH1
     'z6-24392': {
         # Nested by config version to handle port changes over time
-        'Configuration 9': {
+        'Configuration 7': {        # starting october 2023
+            'Port5': 'SI411',
+            'Port6': 'TEROS12-05cm'
+        },
+        'Configuration 9': {        # starting july 2024
             'Port2': 'ATMOS41',
             'Port5': 'SI411',
             'Port6': 'TEROS12-05cm'
         },
-        'Configuration 10': {
+        'Configuration 10': {       # starting november 2024
             'Port1': 'S2411',
             'Port2': 'S2412',
             'Port5': 'SI411',
             'Port6': 'TEROS12-05cm'
         },
-        'Configuration 11': {
+        'Configuration 11': {       # starting may 2025
             'Port1': 'HYDROS21',
             'Port2': 'S2412',
             'Port5': 'SI411',
             'Port6': 'TEROS12-05cm'
         },
-        'Configuration 13': {
+        'Configuration 13': {       # starting july 2025
             'Port1': 'S2411',
+            'Port2': 'S2412',
+            'Port5': 'SI411',
+            'Port6': 'HYDROS21'
+        },
+        'Configuration 14': {       # starting may 2026
             'Port2': 'S2412',
             'Port5': 'SI411',
             'Port6': 'HYDROS21'
         }
     },
     'z6-25818': {
-        'Configuration 3': {
+        'Configuration 3': {        # starting may 2024
             'Port1': 'TEROS12-48cm',
             'Port2': 'TEROS12-30cm',
             'Port3': 'TEROS12-15cm',
             'Port4': 'TEROS21-35cm',
             'Port5': 'TEROS21-25cm'
         },
-        'Configuration 4': {
+        'Configuration 4': {        # starting september 2024
             'Port1': 'TEROS12-48cm',
             'Port2': 'TEROS12-30cm',
             'Port3': 'TEROS12-15cm',
@@ -135,14 +144,14 @@ datalogger_config = {
 
     # South site SDH2
     'z6-26092': {
-        'Configuration 3': {
+        'Configuration 3': {        # starting may 2024
             'Port1': 'TEROS12-65cm',
             'Port2': 'TEROS12-45cm',
             'Port3': 'TEROS12-18cm',
             'Port4': 'TEROS21-55cm',
             'Port5': 'TEROS21-31cm'
         },
-        'Configuration 4': {
+        'Configuration 4': {        # starting july 2024
             'Port1': 'TEROS12-65cm',
             'Port2': 'TEROS12-45cm',
             'Port3': 'TEROS12-18cm',
