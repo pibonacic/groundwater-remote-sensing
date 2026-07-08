@@ -83,7 +83,7 @@ def plot_timeseries_results(df: pd.DataFrame):
     y_obs = df['Observed']
     y_pred = df['Predicted']
 
-    plt.figure(figsize=(15, 6))
+    plt.figure(figsize=(14, 6))
     plt.plot(df.index, y_obs, label='Observed values', color='#4C72B0', linewidth=1)
     plt.plot(df.index, y_pred, label='Model predictions', color='#C44E52', linewidth=1.5, linestyle='--')
     

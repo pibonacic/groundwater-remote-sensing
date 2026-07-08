@@ -15,7 +15,7 @@ from shap_analysis import calculate_shap_values, plot_shap
 # 0. Select study site
 # -----------------------------
 
-study_site = 'SDH1'
+study_site = 'SDH2'
 
 if study_site == 'SDH1':
     insitu_features = insitu_features1
@@ -28,6 +28,12 @@ elif study_site == 'SDH2':
     target = 'SDH2PP01_gw-depth_m'
     insitu_filepath = '../data/processed/in-situ/SDH2_daily-insitu-data.csv'
     remote_filepath = '../data/processed/satellites/SDH2_S2_20m_2023-10_2026-06.csv'
+
+elif study_site == 'SDH2b':
+    insitu_features = insitu_features2
+    target = 'SDH2PS02_gw-depth_m'
+    insitu_filepath = '../data/processed/in-situ/SDH2_daily-insitu-data.csv'
+    remote_filepath = '../data/processed/satellites/SDH2b_S2_20m_2023-10_2026-06.csv'
 
 # -----------------------------
 # 1. Load and prepare data

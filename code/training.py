@@ -1,15 +1,16 @@
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 from sklearn.metrics import mean_squared_error, root_mean_squared_error, mean_absolute_error, r2_score
 from hydroeval import pbias
 
 
 def tune_model(X_train_scaled: pd.DataFrame, y_train: np.ndarray,
-               param_grid: dict=None, cv: int=3, scoring: str='r2', random_state: int=42) -> dict:
+               param_grid: dict=None, cv_splits: int=3, scoring: str='r2', 
+               random_state: int=42) -> dict:
     """
-    Tune hyperparameters of a RandomForestRegressor using GridSearchCV.
+    Tune hyperparameters of a RandomForestRegressor using GridSearchCV with TimeSeriesSplit.
 
     Parameters
     ----------
@@ -20,7 +21,7 @@ def tune_model(X_train_scaled: pd.DataFrame, y_train: np.ndarray,
     param_grid : dict, optional
         Grid of hyperparameters to search. Defaults to:
         {"n_estimators": [100, 200, 300], "max_depth": [5, 10, None]}.
-    cv : int, default=3
+    cv_splits : int, default=3
         Number of cross-validation folds.
     scoring : str, default='r2'
         Scoring metric for model evaluation.
@@ -35,21 +36,25 @@ def tune_model(X_train_scaled: pd.DataFrame, y_train: np.ndarray,
     # Define a default search space to optimize tree complexity and forest size
     if param_grid is None:
         param_grid ={
-            'n_estimators': [100, 200],         # Total trees in the forest
-            'max_depth': [3, 5, 7],             # Limit depth to prevent overfitting
-            'min_samples_leaf': [3, 5],         # Minimum points required in a leaf node
+            'n_estimators': [100, 200, 300, 400],         # Total trees in the forest
+            'max_depth': [5, 10, 15, 20],             # Limit depth to prevent overfitting
+            'min_samples_leaf': [1, 2, 3, 5],      # Minimum points required in a leaf node
+            'max_features': ['sqrt', 'log2', 0.5]
         }
     
+    tscv = TimeSeriesSplit(n_splits=cv_splits)
+
     # Search across the grid with cross-validation
     grid = GridSearchCV(
         RandomForestRegressor(random_state=random_state),
         param_grid,
-        cv=cv,
+        cv=tscv,
         scoring=scoring,
         n_jobs=-1   # Use all available CPU cores for faster processing
     )
     # Execute the cross-validation to find the best hyperparameter combination
     grid.fit(X_train_scaled, y_train)
+    print(grid.best_params_)
 
     return grid.best_params_
 
@@ -154,26 +159,26 @@ def evaluate_model(model: RandomForestRegressor,
     y_pred_test = model.predict(X_test_scaled)
 
     metrics_test = {
-        'MSE': mean_squared_error(y_test, y_pred_test),
-        'RMSE': root_mean_squared_error(y_test, y_pred_test),
-        'MAE' : mean_absolute_error(y_test, y_pred_test),
-        'R2': r2_score(y_test, y_pred_test),
-        'PBIAS': pbias(y_pred_test, y_test)
+        'RMSE': round(root_mean_squared_error(y_test, y_pred_test), 4),
+        'MAE' : round(mean_absolute_error(y_test, y_pred_test), 4),
+        'R2': round(r2_score(y_test, y_pred_test), 4),
+        'PBIAS': round(pbias(y_pred_test, y_test), 4),
+        'MSE': round(mean_squared_error(y_test, y_pred_test), 4)
     }
 
     # Generate predictions applying the model to the train features
     y_pred_train = model.predict(X_train_scaled)
 
     metrics_train = {
-        'MSE': mean_squared_error(y_train, y_pred_train),
-        'RMSE': root_mean_squared_error(y_train, y_pred_train),
-        'MAE' : mean_absolute_error(y_train, y_pred_train),
-        'R2': r2_score(y_train, y_pred_train),
-        'PBIAS': pbias(y_pred_train, y_train)
+        'RMSE': round(root_mean_squared_error(y_train, y_pred_train), 4),
+        'MAE' : round(mean_absolute_error(y_train, y_pred_train), 4),
+        'R2': round(r2_score(y_train, y_pred_train), 4),
+        'PBIAS': round(pbias(y_pred_train, y_train), 4),
+        'MSE': round(mean_squared_error(y_train, y_pred_train), 4)
     }
 
-    print('Model performance (testing): ', metrics_test)
-    print('Model performance (training): ', metrics_train)
+    print('Model performance (testing):\n', metrics_test)
+    print('Model performance (training):\n', metrics_train)
 
     return y_pred_test, y_pred_train, metrics_test, metrics_train
 
@@ -199,8 +204,8 @@ def apply_model(df: pd.DataFrame, target: str, scaler, model: RandomForestRegres
         DataFrame with observed and modeled values from the complete study period.
     """
     # Isolate features and target variables
-    X = df.drop(columns=[target])
-    y_obs = df[target]
+    X = df.drop(columns=target)
+    y_obs = df[target[0]]
     
     # Standarize features with scaler used during training
     X_scaled = scaler.transform(X)
