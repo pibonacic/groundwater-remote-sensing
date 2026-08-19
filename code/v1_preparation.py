@@ -141,10 +141,7 @@ def handle_missing_values(df: pd.DataFrame, strategy: str = 'drop') -> pd.DataFr
         return df_copy.dropna()
     
     elif strategy == 'time':  # Fill gaps by interpolating values
-        return df_copy.interpolate(method='time', 
-                                   #limit=6,
-                                   limit_direction='forward'
-                                   )
+        return df_copy.interpolate(method='time', limit_direction='forward')
     
     else:
         raise ValueError('Strategy not supported')
@@ -357,69 +354,69 @@ def add_lags(df:pd.DataFrame, features: List[str], past_lags: List[int] = None, 
     return output_df
 
 
-# def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, random_state: int = 42):
-#     """
-#     Preprocess the dataset for machine learning.
+def preprocess_for_ML(df: pd.DataFrame, target: str, test_size: float = 0.2, random_state: int = 42):
+    """
+    Preprocess the dataset for machine learning.
 
-#     Steps:
-#     1. Split the dataframe into features (X) and target (y).
-#     2. Split the data into training and testing sets.
-#     3. Standardize the feature data (zero mean, unit variance).
-#     4. Convert target arrays to 1D numpy arrays.
+    Steps:
+    1. Split the dataframe into features (X) and target (y).
+    2. Split the data into training and testing sets.
+    3. Standardize the feature data (zero mean, unit variance).
+    4. Convert target arrays to 1D numpy arrays.
 
-#     Parameters
-#     ----------
-#     df : pd.DataFrame
-#         Input dataframe.
-#     target : str
-#         Name of the target column.
-#     test_size : float, default=0.2
-#         Fraction of the dataset to use as the test set.
-#     random_state : int, default=42
-#         Random seed for reproducibility.
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe.
+    target : str
+        Name of the target column.
+    test_size : float, default=0.2
+        Fraction of the dataset to use as the test set.
+    random_state : int, default=42
+        Random seed for reproducibility.
 
-#     Returns
-#     -------
-#     X_train_scaled : np.ndarray
-#         Standardized training features.
-#     X_test_scaled : np.ndarray
-#         Standardized testing features.
-#     y_train : np.ndarray
-#         Training target values.
-#     y_test : np.ndarray
-#         Testing target values.
-#     scaler : StandardScaler
-#         Fitted scaler object for possible inverse transformations.
-#     """
-#     # Isolate features (X) and target (y) 
-#     X = df.drop(columns=[target])
-#     y = df[target]
+    Returns
+    -------
+    X_train_scaled : np.ndarray
+        Standardized training features.
+    X_test_scaled : np.ndarray
+        Standardized testing features.
+    y_train : np.ndarray
+        Training target values.
+    y_test : np.ndarray
+        Testing target values.
+    scaler : StandardScaler
+        Fitted scaler object for possible inverse transformations.
+    """
+    # Isolate features (X) and target (y) 
+    X = df.drop(columns=[target])
+    y = df[target]
 
-#     # Split data for training and testing. Random seed is defined for reproducibility
-#     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+    # Split data for training and testing. Random seed is defined for reproducibility
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
 
-#     # Save test data dates
-#     test_dates = y_test.index
+    # Save test data dates
+    test_dates = y_test.index
 
-#     print("Training data: ")
-#     print("Count x: ", X_train.count())
-#     print("Count y: ", y_train.count())
-#     print("Testing data: ")
-#     print("Count x", X_test.count())
-#     print("Count y: ", y_test.count())
+    print("Training data: ")
+    print("Count x: ", X_train.count())
+    print("Count y: ", y_train.count())
+    print("Testing data: ")
+    print("Count x", X_test.count())
+    print("Count y: ", y_test.count())
 
-#     # Define a scaler for data standarization (mean=0, std=1)
-#     scaler = StandardScaler()
+    # Define a scaler for data standarization (mean=0, std=1)
+    scaler = StandardScaler()
 
-#     # Standarize features. Fit on training only to avoid data leakeage
-#     X_train_scaled = scaler.fit_transform(X_train)
-#     X_test_scaled = scaler.transform(X_test)
+    # Standarize features. Fit on training only to avoid data leakeage
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
 
-#     # Flatten target for Scikit-Learn compatibility
-#     y_train = y_train.to_numpy().ravel()
-#     y_test = y_test.to_numpy().ravel()
+    # Flatten target for Scikit-Learn compatibility
+    y_train = y_train.to_numpy().ravel()
+    y_test = y_test.to_numpy().ravel()
     
-#     return X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, test_dates
 
 
 def preprocess_for_ML_chrono(df: pd.DataFrame, target: list, train_size: float = 0.5):

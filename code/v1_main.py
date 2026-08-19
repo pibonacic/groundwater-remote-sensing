@@ -3,12 +3,12 @@ Author: Pedro Bonacic Vera
 Description:
 """
 
-from config import insitu_features1, insitu_features2, remote_features, no_outlier_check
+from code.v1_config import insitu_features1, insitu_features2, remote_features, no_outlier_check
 
 from preparation import load_and_prepare_data, handle_duplicate_values, handle_outliers, reindex_daily, handle_missing_values, calculate_stats_from_random_points, smooth_data, merge_datasets, slice_by_dates, add_time, add_lags, preprocess_for_ML, preprocess_for_ML_chrono
-from training import tune_model, train_model, evaluate_model, apply_model
-from plotting import obs_data, plot_pred_vs_real, plot_timeseries_results
-from shap_analysis import calculate_shap_values, plot_shap
+from code.v1_training import tune_model, train_model, evaluate_model, apply_model
+from code.v1_plotting import obs_data, plot_pred_vs_real, plot_timeseries_results
+from code.v1_shap_analysis import calculate_shap_values, plot_shap
 
 
 # -----------------------------

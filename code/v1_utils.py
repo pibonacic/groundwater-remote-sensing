@@ -1,6 +1,6 @@
 import pandas as pd
 
-from preparation import load_and_prepare_data, handle_duplicate_values, handle_outliers, reindex_daily, handle_missing_values, calculate_stats_from_random_points, smooth_data, merge_datasets, slice_by_dates, add_time, add_lags
+from code.v1_preparation import load_and_prepare_data, handle_duplicate_values, handle_outliers, reindex_daily, handle_missing_values, calculate_stats_from_random_points, smooth_data, merge_datasets, slice_by_dates, add_time, add_lags
 
 def process_remote(
         filepath: str,

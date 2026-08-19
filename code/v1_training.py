@@ -92,42 +92,6 @@ def train_model(X_train_scaled: pd.DataFrame, y_train: np.ndarray,
     return model
 
 
-# def evaluate_model(model: RandomForestRegressor,
-#                    X_test_scaled: pd.DataFrame, y_test: np.ndarray) -> tuple[np.ndarray, dict]:
-#     """
-#     Evaluate model predictions and return regression metrics.
-
-#     Parameters
-#     ----------
-#     model : RandomForestRegressor
-#         Trained model.
-#     X_test_scaled : pd.DataFrame
-#         Scaled testing features.
-#     y_test : np.ndarray
-#         Observed target values.
-
-#     Returns
-#     ----------
-#     y_pred : np.ndarray
-#         Model predictions.
-#     metrics : dict
-#         Dictionary containing MSE, RMSE, MAE, R2 and PBIAS
-#     """
-#     # Generate predictions applying the model to the unseen test features
-#     y_pred = model.predict(X_test_scaled)
-
-#     metrics = {
-#         'MSE': mean_squared_error(y_test, y_pred),
-#         'RMSE': root_mean_squared_error(y_test, y_pred),
-#         'MAE' : mean_absolute_error(y_test, y_pred),
-#         'R2': r2_score(y_test, y_pred),
-#         'PBIAS': pbias(y_pred, y_test)
-#     }
-
-#     print('Model performance: ', metrics)
-#     return y_pred, metrics
-
-
 def evaluate_model(model: RandomForestRegressor,
                    X_test_scaled: pd.DataFrame, y_test: np.ndarray,
                    X_train_scaled, y_train) -> tuple[np.ndarray, dict]:
