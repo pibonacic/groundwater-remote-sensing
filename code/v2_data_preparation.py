@@ -21,7 +21,7 @@ def load_and_prepare_data(
     ----------
     filepath : str
         Path to the CSV file.
-    index_col : str
+    index_col : str, default='Timestamps'
         Column containing datetime information to be used as index.
     date_format : str, default='%Y-%m-%d'
         Format string for date parsing.
@@ -412,6 +412,7 @@ def process_insitu(
         end_date: str | None = None,
         cols_to_keep: list[str] | None = None,
         outlier_threshold: float = 3.0,
+        ignore_outliers_cols:list[str] | None = None
 ) -> pd.DataFrame:
     return (
         load_and_prepare_data(filepath=filepath, index_col=index_col, date_format=date_format, sep=sep)
@@ -419,10 +420,10 @@ def process_insitu(
         .pipe(slice_by_dates, startDate=start_date, endDate=end_date)
         .pipe(handle_duplicate_values)
         .pipe(reindex_daily)
-        .pipe(handle_outliers, z_thresh=outlier_threshold)
+        .pipe(handle_outliers, z_thresh=outlier_threshold, ignore_vars=ignore_outliers_cols)
     )
 
-# ALTERNATIVES
+# # ALTERNATIVES
 
 def process_modis_nbar(
         filepath: str,
@@ -444,56 +445,56 @@ def process_modis_nbar(
         .pipe(handle_outliers, z_thresh=outlier_threshold)
     )
 
-def process_modis_no_smooth(
-        filepath: str,
-        index_col: str = 'Timestamps',
-        date_format: str = '%Y-%m-%d',
-        sep: str = ',',
-        start_date: str | None = None,
-        end_date: str | None = None,
-        cols_to_keep: list[str] | None = None,
-        outlier_threshold: float = 3.0
-) -> pd.DataFrame:
-    return (
-        load_and_prepare_data(filepath=filepath, index_col=index_col, date_format=date_format, sep=sep)
-        .pipe(filter_columns, cols_to_keep=cols_to_keep)
-        .pipe(slice_by_dates, startDate=start_date, endDate=end_date)
-        .pipe(filter_by_reflectance)
-        .pipe(handle_duplicate_values)
-        .pipe(reindex_daily)
-        .pipe(handle_outliers, z_thresh=outlier_threshold)
-        .pipe(handle_missing_values, method='time')
-    )
+# def process_modis_no_smooth(
+#         filepath: str,
+#         index_col: str = 'Timestamps',
+#         date_format: str = '%Y-%m-%d',
+#         sep: str = ',',
+#         start_date: str | None = None,
+#         end_date: str | None = None,
+#         cols_to_keep: list[str] | None = None,
+#         outlier_threshold: float = 3.0
+# ) -> pd.DataFrame:
+#     return (
+#         load_and_prepare_data(filepath=filepath, index_col=index_col, date_format=date_format, sep=sep)
+#         .pipe(filter_columns, cols_to_keep=cols_to_keep)
+#         .pipe(slice_by_dates, startDate=start_date, endDate=end_date)
+#         .pipe(filter_by_reflectance)
+#         .pipe(handle_duplicate_values)
+#         .pipe(reindex_daily)
+#         .pipe(handle_outliers, z_thresh=outlier_threshold)
+#         .pipe(handle_missing_values, method='time')
+#     )
 
-def process_landsat_spacecraft(
-        filepath: str,
-        index_col: str = 'Timestamps',
-        date_format: str = '%Y-%m-%d',
-        sep: str = ',',
-        start_date: str | None = None,
-        end_date: str | None = None,
-        cols_to_keep: list[str] | None = None,
-        outlier_threshold: float = 3.0,
-        stats_min_points: int = 10
-) -> pd.DataFrame:
+# def process_landsat_spacecraft(
+#         filepath: str,
+#         index_col: str = 'Timestamps',
+#         date_format: str = '%Y-%m-%d',
+#         sep: str = ',',
+#         start_date: str | None = None,
+#         end_date: str | None = None,
+#         cols_to_keep: list[str] | None = None,
+#         outlier_threshold: float = 3.0,
+#         stats_min_points: int = 10
+# ) -> pd.DataFrame:
 
-    raw_df = pd.read_csv(filepath, sep=sep)
+#     raw_df = pd.read_csv(filepath, sep=sep)
 
-    processed_df = (
-        load_and_prepare_data(filepath=filepath, index_col=index_col, date_format=date_format, sep=sep)
-        .pipe(slice_by_dates, startDate=start_date, endDate=end_date)
-        .pipe(filter_by_reflectance)
-        .pipe(handle_duplicate_values)
-        .pipe(reindex_daily)    # NO ES NECESARIO
-        .pipe(handle_outliers, z_thresh=outlier_threshold)
-        .pipe(calculate_stats_from_random_points, minPoints=stats_min_points)
-        .pipe(filter_columns, cols_to_keep=cols_to_keep)
-    )
+#     processed_df = (
+#         load_and_prepare_data(filepath=filepath, index_col=index_col, date_format=date_format, sep=sep)
+#         .pipe(slice_by_dates, startDate=start_date, endDate=end_date)
+#         .pipe(filter_by_reflectance)
+#         .pipe(handle_duplicate_values)
+#         .pipe(reindex_daily)    # NO ES NECESARIO
+#         .pipe(handle_outliers, z_thresh=outlier_threshold)
+#         .pipe(calculate_stats_from_random_points, minPoints=stats_min_points)
+#         .pipe(filter_columns, cols_to_keep=cols_to_keep)
+#     )
 
-    return attach_spacecraft_column(
-        processed_df=processed_df,
-        raw_df=raw_df,
-        spacecraft_col='Spacecraft',
-        index_col=index_col,
-        date_format=date_format
-    )
+#     return attach_spacecraft_column(
+#         processed_df=processed_df,
+#         raw_df=raw_df,
+#         spacecraft_col='Spacecraft',
+#         index_col=index_col,
+#         date_format=date_format
+#     )

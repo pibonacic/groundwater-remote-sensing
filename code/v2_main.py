@@ -3,16 +3,14 @@ Author: Pedro Bonacic Vera
 Description:
 """
 
-from v2_preparation import process_modis, process_landsat, process_insitu, load_and_prepare_data, slice_by_dates
+from v2_data_preparation import process_modis, process_landsat, process_insitu
 from v2_sensor_fusion import fuse_sensors
+from v2_feature_engineering import build_features_dataset, join_datasets, build_features_dataset_v2
+from v2_modelling_framework import train_and_evaluate_RF, predict_dataset
+
 from v2_visualization import (
     obs_data, format_metrics_table, plot_landsat_bands, plot_residuals_boxplot, 
     plot_pred_vs_real, plot_timeseries_results, plot_timeseries_results2, plot_shap)
-
-from v2_features_processing import(
-    process_spectral_data, principal_component_analysis, cross_correlations_analysis, merge_datasets, add_lags, add_time)
-
-from v2_modelling_framework import train_and_evaluate_RF, predict_dataset
 
 import shap
 
@@ -20,7 +18,7 @@ import shap
 # 1. Study site selection and config
 # -----------------------------
 
-study_site = 'SDH1'
+study_site = 'SDH2'
 start_date = '2000'
 end_date = '2026'
 
@@ -61,10 +59,6 @@ features = [
     'str1',
     'str2',
 ]
-
-nLags = 3
-intervalLags = 1
-lags_list = list(range(1, nLags, intervalLags))
 
 # -----------------------------
 # 2. Input data preprocessing
@@ -134,20 +128,40 @@ print(metrics_df.to_string())
 # 4. Predictors and target processing
 # -----------------------------
 
-indices_df = process_spectral_data(sensor_fusion_results['anchored'])
-
-pca_df = principal_component_analysis(indices_df, feature_columns=features, n_components=2, random_state=42)
-
-# cc_df = merge_datasets(insitu_df, pca_df, how='outer')
-# cc_df2 = cross_correlations_analysis(cc_df, target_col=target, feature_cols=['PC_1', 'PC_2'], max_lag=10)
-
-time_df = (
-    pca_df
-    .pipe(add_lags, features=['PC_1', 'PC_2'], past_lags=lags_list, future_lags=lags_list)
-    .pipe(add_time)
+# MODIFICADO PARA NO ACEPTAR ROLLINGS
+features_dataset, cc_report, pca_model = build_features_dataset(
+    remote_df=sensor_fusion_results['predicted'],
+    insitu_df=insitu_df,
+    target_col=target,
+    spectral_bands_cols=modis_cols,
+    pca_components=2,
+    verbose_pca=True,
+    rolling_windows=[14],
+    rolling_stats=['mean'],
+    max_cc_lag=8,
+    min_corr_thresh=0.1,
+    top_k_lags=5,
+    random_state=42
 )
 
-training_df = merge_datasets(insitu_df, time_df, how='inner')
+# features_dataset = build_features_dataset_v2(
+#     remote_df=sensor_fusion_results['predicted'],
+#     spectral_bands_cols=modis_cols,
+#     pca_components=3,
+#     verbose_pca=True,
+#     past_lags=[1, 2],
+#     future_lags=[1, 2],
+#     random_state=42
+# )
+
+training_df = join_datasets(
+    df1=insitu_df[[target]],
+    df2=features_dataset,
+    how='inner'
+    )
+
+
+print(f'\nTraining dataset: {training_df.shape[0]} rows, {training_df.shape[1]} columns')
 
 
 # -----------------------------
@@ -157,11 +171,11 @@ training_df = merge_datasets(insitu_df, time_df, how='inner')
 rf_results = train_and_evaluate_RF(
     df=training_df,
     target=target,
-    split_strategy='random',
+    split_strategy='chrono_train_first',    # chrono_train_first, chrono_test_first, random
     train_size=0.5,
     scale_features=False,
     tune_hyperparameters=True,
-    cv_strategy='random',
+    cv_strategy='chrono',                   # chrono, random
     cv_splits=3,
     compute_shap=True
 )
@@ -171,31 +185,22 @@ plot_timeseries_results(df=rf_results['predictions_df'])
 plot_pred_vs_real(y_test=rf_results['y_test'], y_pred=rf_results['y_pred_test'])
 
 # Resumen de interpretabilidad
-print(rf_results['feature_importances'].head(10))
+# print(rf_results['feature_importances'].head(10))
 shap.plots.beeswarm(rf_results['shap_values'])
 
 # -----------------------------
 # 5. Predictions over satellite archive
 # -----------------------------
 
-indices_2000_2026 = process_spectral_data(sensor_fusion_results['anchored'])
-
-pca_2000_2026 = principal_component_analysis(
-    indices_2000_2026,
-    feature_columns=features,
-    n_components=2,
-    random_state=42
-)
-
-time_2000_2026 = (
-    pca_2000_2026
-    .pipe(add_lags, features=['PC_1', 'PC_2'], past_lags=lags_list, future_lags=lags_list)
-    .pipe(add_time)
-)
-
 predictions_2000_2026 = predict_dataset(
-    df=time_2000_2026,
+    df=features_dataset,
     model=rf_results['model'],
     scaler=rf_results['scaler']
 )
-plot_timeseries_results2(df=predictions_2000_2026)
+
+predictions_2000_2026.to_csv(
+    f'../outputs/predictions/{study_site}_{start_date}-{end_date}_suffix.csv',
+    index_label='Timestamps'
+)
+
+# plot_timeseries_results2(df=predictions_2000_2026)

@@ -5,7 +5,7 @@ import seaborn as sns
 import shap
 from numpy.polynomial import Polynomial
 
-from v2_preparation import slice_by_dates
+from v2_data_preparation import slice_by_dates
 
 
 def obs_data(df):

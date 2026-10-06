@@ -85,8 +85,7 @@ def predict_using_linear_regression(
        model: LinearRegression 
 ) -> pd.Series:
     """
-    Interpolates a series to daily frequency and applies the trained linear
-    regression model.    
+    Applies the trained linear regression model.    
     """
     # Prepare the independent series
     X_predict = modis_series.values.reshape(-1, 1)

@@ -62,21 +62,21 @@ def preprocess_for_ML(
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, train_size=train_size, random_state=random_state
         )
-        print(f'Random split applied')
+        print(f'\nRandom split applied')
 
     # Split train and test sets in chronological order, starting with train set
     elif split_strategy == 'chrono_train_first':
         split_idx = int(len(df) * train_size)   # Identify splitting point
         X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]    # Train: from start to split point
         y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]    # Test: from split point to end
-        print(f'Chronological split applied at: {y_train.index[-1].date()}')
+        print(f'\nChronological split applied at: {y_train.index[-1].date()}')
         
     # Split train and test sets in chronological order, starting with test set
     elif split_strategy == 'chrono_test_first':
         split_idx = int(len(df) * (1 - train_size))
         X_train, X_test = X.iloc[split_idx:], X.iloc[:split_idx]    # Train: from split point to end
         y_train, y_test = y.iloc[split_idx:], y.iloc[:split_idx]    # Test: from start to split point
-        print(f'Chronological split applied at: {y_train.index[0].date()}')
+        print(f'\nChronological split applied at: {y_train.index[0].date()}')
 
     else:
         raise ValueError(f'{split_strategy} is not a supported splitting strategy')
