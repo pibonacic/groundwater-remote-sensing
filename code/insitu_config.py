@@ -85,6 +85,15 @@ piezometer_config = {
     }
 }
 
+# Piezometer level offsets to correct sensor repositioning
+# Each record defines: (start_timestamp, end_timestamp_or_None, offset_value)
+piezometer_offsets = {
+    '2188498': [
+        ('2026-05-15 17:40', None, 0.25)
+    ]
+}
+
+
 # Datalogger metadata dictionary for automated column naming, keyed by datalogger ID
 datalogger_config = {
     

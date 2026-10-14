@@ -3,8 +3,8 @@ import glob
 import pandas as pd
 
 # Import local configuration and utility functions
-from insitu_config import dirs, campaigns, sites_config, piezometer_config, datalogger_config, datalogger_vars, no_outlier_check, aggregation_rules
-from insitu_utils import load_piezometer_data, calculate_gw_metrics, load_datalogger_data, remove_campaign_outliers, aggregate_daily
+from insitu_config import dirs, campaigns, sites_config, piezometer_config, piezometer_offsets, datalogger_config, datalogger_vars, no_outlier_check, aggregation_rules
+from insitu_utils import load_piezometer_data, apply_piezometer_offsets, calculate_gw_metrics, load_datalogger_data, remove_campaign_outliers, aggregate_daily
 
 
 # Main loop: iterate over study site
@@ -40,6 +40,8 @@ for site_name, site_devices in sites_config.items():
         if raw_dfs:
             # Concatenate records and apply the processing pipeline
             full_df = pd.concat(raw_dfs, axis=0).sort_index()
+            if piezo_id in piezometer_offsets:
+                full_df = apply_piezometer_offsets(full_df, piezometer_offsets[piezo_id])
             metrics_df = calculate_gw_metrics(full_df, properties)
             clean_df = remove_campaign_outliers(metrics_df, campaigns, no_outlier_check, 3, 10)
             daily_df = aggregate_daily(clean_df, aggregation_rules)

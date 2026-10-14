@@ -29,6 +29,38 @@ def load_piezometer_data(filepath: str) -> pd.DataFrame:
 
     return df
 
+def apply_piezometer_offsets(df: pd.DataFrame, offsets: list[tuple]) -> pd.DataFrame:
+    """
+    Apply numeric offsets to raw piezometer level measurements during defined time windows.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing raw 'LEVEL' data with a DatetimeIndex.
+    offsets : list[tuple]
+        List of tuples formatted as (start_time, end_time, offset_value).
+        If end_time is None, the offset applies indefinitely from start_time.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with adjusted 'LEVEL' values.
+    """
+    df_adjusted = df.copy()
+
+    # Apply each defined adjustment window
+    for start_time, end_time, offset in offsets:
+        # Build boolean temporal mask
+        time_mask = df_adjusted.index >= pd.to_datetime(start_time)
+        if end_time is not None:
+            time_mask = time_mask & (df_adjusted.index <= pd.to_datetime(end_time))
+
+        # Add offset to raw water level
+        df_adjusted.loc[time_mask, 'LEVEL'] += offset
+
+    return df_adjusted
+
+
 def calculate_gw_metrics(df: pd.DataFrame, piezometer_config: dict) -> pd.DataFrame:
     """
     Calculate groundwater depth and level based on sensor configuration and rename output columns.

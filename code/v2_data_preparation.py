@@ -129,6 +129,25 @@ def filter_by_reflectance(df: pd.DataFrame) -> pd.DataFrame:
         (df >= 0) & (df <= 1))
     return df_filtered
 
+def filter_clouds(
+        df: pd.DataFrame, 
+        column_name: str, 
+        max_threshold: float
+) -> pd.DataFrame:
+    """
+    Filter out rows where the value in the specified column exceeds the maximum threshold.
+    """
+    return df[df[column_name] <= max_threshold]
+
+def filter_shadows(
+        df: pd.DataFrame, 
+        column_name: str, 
+        min_threshold: float
+) -> pd.DataFrame:
+    """
+    Filter out rows where the value in the specified column does not reach the minimum threshold.
+    """
+    return df[df[column_name] >= min_threshold]
 
 def handle_outliers(
         df: pd.DataFrame,

@@ -48,6 +48,7 @@ def compute_spectral_indices(
 
     return out_df
 
+# SI SOLO USO LANDSAT OLI PODRIA VOLVER A USAR LOS TCT ¿LOS DESCARTE POR ALGO ADEMAS DEL MUTLISENSOR?
 
 def run_pca(
         df: pd.DataFrame,
@@ -433,7 +434,7 @@ def add_lags(
 
 
 
-
+# version sin rolling ni lags personalizados
 def build_features_dataset_v2(
         remote_df: pd.DataFrame,
         # insitu_df: pd.DataFrame,

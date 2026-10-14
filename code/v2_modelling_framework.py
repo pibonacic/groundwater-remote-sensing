@@ -294,7 +294,7 @@ def evaluate_model(
 
     return y_pred_test, y_pred_train, metrics_test, metrics_train
 
-
+# ESTE PASO NO ES NECESARIO, SE HACE DENTRO DE GRIDSEARCH CV
 def evaluate_CV(
         model: RandomForestRegressor,
         X_train: pd.DataFrame,
