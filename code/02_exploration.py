@@ -1,0 +1,65 @@
+"""Steps 2-3: signs, regimes, leads and rain windows on the development period."""
+import config as cfg
+from functions.data import load_table, save_table, compute_indices
+from functions.exploration import (
+    monthly_anomaly, spearman_signs, regime_check, lead_table, rain_window_response, redundancy_clusters)
+from functions.features import compute_partition
+from functions.plots import scatter_by_season, ccf_plot, dendrogram_plot, rain_window_plot
+
+SITE = "sdh1"
+
+out_dir = cfg.OUTPUTS_DIR / SITE / "02_exploration"
+out_dir.mkdir(parents=True, exist_ok=True)
+
+# 1. Load the clean table and keep only the development period (same cut as step 3,
+#    without the separation days, so the holdout is never looked at).
+daily = load_table(cfg.INTERIM_DIR / f"{SITE}_daily.csv")
+partition = compute_partition(daily["gw_cm"].dropna().index, cfg.DEV_YEARS, 0)
+daily = daily.loc[:partition.dev_end]
+y = daily["gw_cm"]
+
+# 2. Spectral indices from the NBAR bands; X = indices + raw bands.
+indices = compute_indices(daily, cfg.BANDS)
+bands = daily.drop(columns=["gw_cm", "qa_low", "precip_mm"])
+X = indices.join(bands)
+
+# 3. Sign of the relation with the water level (Spearman) and whether it differs
+#    above/below the surface (two regimes).
+signs = spearman_signs(X, y, cfg.MIN_PAIRS)
+regimes = regime_check(X, y, cfg.REGIME_THRESHOLD_CM, cfg.MIN_PAIRS)
+
+# 4. Lead time: correlation between the water level and the index shifted by k days,
+#    on the raw series and on monthly anomalies (seasonality removed). Proposes LEADS.
+leads, ccf_raw, ccf_anom, proposed_leads = lead_table(indices, y, cfg.CCF_KS, cfg.MIN_PAIRS)
+
+# 5. Rain accumulation windows that best track the moisture anomaly. Narrows WINDOWS.
+rain = rain_window_response(
+    daily["precip_mm"], monthly_anomaly(indices[cfg.RAIN_MOISTURE_INDEX]), cfg.RAIN_WINDOWS, cfg.MIN_PAIRS)
+
+# 6. Redundancy: bands and indices that move together (the water level is not used). Which one of
+#    each cluster becomes a feature is your choice (SPECTRAL in config.py); `proposed` is only a start.
+#    Computed on the days of the development period that have a water level.
+tree, clusters = redundancy_clusters(X.loc[y.dropna().index], cfg.REDUNDANCY_THRESHOLD)
+
+# 7. Save every table that supports a decision, plus the figures.
+for name, table in {"signs": signs, "regimes": regimes, "leads": leads,
+                    "ccf_raw": ccf_raw, "ccf_anomaly": ccf_anom, "rain_windows": rain, "clusters": clusters}.items():
+    save_table(table, out_dir / f"{name}.csv")
+scatter_by_season(indices.loc[y.dropna().index], y.dropna(), f"{SITE}: indices vs water level").savefig(
+    out_dir / "scatter_by_season.png", dpi=150)
+ccf_plot(ccf_raw, ccf_anom, f"{SITE}: CCF with water level").savefig(out_dir / "ccf.png", dpi=150)
+dendrogram_plot(tree, list(X.columns), list(clusters.index[clusters["proposed"]]), cfg.REDUNDANCY_THRESHOLD,
+                f"{SITE}: bands and indices, threshold {cfg.REDUNDANCY_THRESHOLD}").savefig(out_dir / "dendrogram.png", dpi=150)
+rain_window_plot(rain, f"{SITE}: rain window vs {cfg.RAIN_MOISTURE_INDEX} anomaly").savefig(
+    out_dir / "rain_windows.png", dpi=150)
+
+# 8. Summary. Then edit DECISIONS in config.py (regime, SPECTRAL, LEADS, WINDOWS) with date and reason.
+print(f"{SITE}: development period {y.dropna().index.min().date()} to {y.dropna().index.max().date()}, "
+      f"{y.notna().sum()} water level days")
+print("signs (indices):\n", signs.loc[list(indices.columns)].round(3))
+print("regime days below/above threshold:", int(regimes["n_below"].iloc[0]), "/", int(regimes["n_above"].iloc[0]))
+print("leads:\n", leads.round(3).to_string(index=False))
+print("proposed LEADS:", proposed_leads)
+print("rain windows:\n", rain.round(3))
+print("redundancy clusters (* = proposed):\n", clusters.assign(column=[f"{c} *" if p else c for c, p in zip(clusters.index, clusters["proposed"])])
+      .groupby("cluster")["column"].apply(", ".join).to_string())
