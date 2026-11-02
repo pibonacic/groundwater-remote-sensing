@@ -70,6 +70,21 @@ def align_sources(piezo, nbar, chirps):
     return to_daily(pd.concat([piezo, nbar, chirps], axis=1))
 
 
+def mask_reflectance_outliers(df, columns, max_z):
+    """Set to NaN every value of the given columns whose |z-score| exceeds max_z.
+
+    The z-score uses each column's mean and standard deviation over the whole series.
+    Returns the masked table and the masked values (date, band, value, z).
+    """
+    z = (df[columns] - df[columns].mean()) / df[columns].std()
+    outliers = z.abs() > max_z
+    out = df.copy()
+    out[columns] = df[columns].mask(outliers)
+    masked = pd.DataFrame({"value": df[columns].stack(), "z": z.stack()})[outliers.stack()]
+    masked = masked.rename_axis(["date", "band"]).reset_index(level="band")
+    return out, masked
+
+
 def interpolate_nbar(df, columns):
     """Fill gaps inside the series of the given columns by time-weighted linear interpolation.
 

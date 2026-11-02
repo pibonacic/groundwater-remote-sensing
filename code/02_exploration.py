@@ -4,7 +4,7 @@ from functions.data import load_table, save_table, compute_indices
 from functions.exploration import (
     monthly_anomaly, spearman_signs, regime_check, lead_table, rain_window_response, redundancy_clusters)
 from functions.features import compute_partition
-from functions.plots import scatter_by_season, ccf_plot, dendrogram_plot, rain_window_plot
+from functions.plots import scatter_by_season, zscore_series_plot, ccf_plot, dendrogram_plot, rain_window_plot
 
 SITE = "sdh1"
 
@@ -47,6 +47,9 @@ for name, table in {"signs": signs, "regimes": regimes, "leads": leads,
     save_table(table, out_dir / f"{name}.csv")
 scatter_by_season(indices.loc[y.dropna().index], y.dropna(), f"{SITE}: indices vs water level").savefig(
     out_dir / "scatter_by_season.png", dpi=150)
+dev = slice(y.first_valid_index(), partition.dev_end)
+zscore_series_plot(X.loc[dev], y.loc[dev], f"{SITE}: indices and bands vs water level (z-scores, development period)").savefig(
+    out_dir / "zscore_series.png", dpi=150)
 ccf_plot(ccf_raw, ccf_anom, f"{SITE}: CCF with water level").savefig(out_dir / "ccf.png", dpi=150)
 dendrogram_plot(tree, list(X.columns), list(clusters.index[clusters["proposed"]]), cfg.REDUNDANCY_THRESHOLD,
                 f"{SITE}: bands and indices, threshold {cfg.REDUNDANCY_THRESHOLD}").savefig(out_dir / "dendrogram.png", dpi=150)

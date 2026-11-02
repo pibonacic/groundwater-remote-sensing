@@ -1,5 +1,4 @@
 """Feature table (spectral columns, leads, rain windows, calendar) and development/holdout split."""
-import re
 from collections import namedtuple
 
 import numpy as np
@@ -13,8 +12,6 @@ CALENDAR_COLS = ["sin_doy", "cos_doy"]
 TARGET = "gw_cm"
 SEASON_BY_MONTH = {12: "DJF", 1: "DJF", 2: "DJF", 3: "MAM", 4: "MAM", 5: "MAM",
                    6: "JJA", 7: "JJA", 8: "JJA", 9: "SON", 10: "SON", 11: "SON"}
-
-_LEAD_PATTERN = re.compile(r"_lead\d+$")
 
 Partition = namedtuple("Partition", ["dev_end", "holdout_start"])
 
@@ -46,26 +43,6 @@ def build_feature_table(bands, precip, leads, windows, band_map, columns):
     table["sin_doy"] = np.sin(angle)
     table["cos_doy"] = np.cos(angle)
     return table
-
-
-def feature_blocks(columns):
-    """Classify columns into spectral, lead, rain and calendar blocks by name."""
-    blocks = {"spectral": [], "lead": [], "rain": [], "calendar": []}
-    for col in columns:
-        if col in CALENDAR_COLS:
-            blocks["calendar"].append(col)
-        elif col.startswith(RAIN_PREFIX):
-            blocks["rain"].append(col)
-        elif _LEAD_PATTERN.search(col):
-            blocks["lead"].append(col)
-        else:
-            blocks["spectral"].append(col)
-    return blocks
-
-
-def build_groups(columns):
-    """One group per column, so permutation, selection frequency and stability are reported per variable."""
-    return {col: [col] for col in columns}
 
 
 def season_of(index):

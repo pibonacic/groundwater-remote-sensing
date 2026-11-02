@@ -15,24 +15,21 @@ RAIN_WINDOWS = [3, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 30]   # candidate 
 RAIN_MOISTURE_INDEX = "str1"            # index whose anomaly responds to rain
 REGIME_THRESHOLD_CM = 0     # water level at/below this = "below surface" regime
 
-# Validation folds (counted in days; the gap between train and test comes from the leads).
-N_SPLITS = 4                # number of forward/backward folds
-TEST_SIZE = 85              # days per test fold
-MIN_TRAIN = 365             # minimum days in the first training set
-INNER_SPLITS = 3            # temporal folds inside ElasticNetCV
+# Validation folds (counted in days). The development must have exactly MIN_TRAIN + GAP + N_SPLITS * TEST_SIZE rows.
+N_SPLITS = 5                # number of forward folds (and as many backward) of the joint scheme
+TEST_SIZE = 70              # days per test fold
+MIN_TRAIN = 365             # days in the first training set
+GAP = 15                    # days dropped between train and test (joint, halves) and between development and holdout
+INNER_SPLITS = 3            # temporal folds inside ElasticNetCV (no gap)
 ENET_L1_RATIOS = [0.1, 0.5, 0.9, 1.0]
 ENET_MAX_ITER = 200000
 SEED = 0                    # random state of every stochastic step
 
-REDUNDANCY_THRESHOLD = 0.6  # |Spearman| above which two bands/indices count as redundant (exploration only)
+N_BOOTSTRAP = 1000          # block-bootstrap resamples of the out-of-fold predictions
+BOOTSTRAP_BLOCK_DAYS = 30
+BOOTSTRAP_LEVEL = 0.95      # confidence level of the intervals
 
-# Variable selection (script 05)
-N_PERMUTATIONS = 10         # shuffles per group and fold
-STABLE_MIN_FRAC = 0.8       # share of folds in which the Elastic Net must keep a group
-BLOCKS = ("spectral", "lead", "rain", "calendar")
-ABLATION_MODELS = ["elasticnet", "boosting"]   # models of the ablation (default hyperparameters); the first decides the proposal
-ABLATION_VERSIONS = {       # nested column sets compared in the ablation, simplest first
-    "V1": ["spectral"], "V2": ["spectral", "rain"], "V3": ["spectral", "rain", "calendar"]}
+REDUNDANCY_THRESHOLD = 0.6  # |Spearman| above which two bands/indices count as redundant (exploration only)
 
 # VIIRS NBAR band behind each generic name used by the spectral indices.
 BANDS = {"green": "M4", "red": "I1", "nir": "I2", "swir1": "I3", "swir2": "M11"}
@@ -62,30 +59,30 @@ for _site in SITES.values():
         "physical_range_cm": (-100, 30),    # plausible level range
         "max_jump_cm": 5.0,                 # day-to-day change flagged as a jump
         "nbar_qa": {"good_flags": (0, 1)},  # other BRDF quality flags mark a day qa_low (data is kept)
+        "max_reflectance_z": 3.0,           # NBAR values with |z-score| above this are masked
     })
 
 # ---------------------------------------------------------------- DECISIONS
 # Filled after reading the outputs of 02_exploration.py (record date and reason).
-# 2026-10-27: rain windows chosen after step 2 (rain reference index: str1). Leads
-# chosen based on knowledge of the study area
+# 2026-10-27: rain windows chosen after step 2 (rain reference index: str1).
 # SPECTRAL: bands and indices that become features (your choice from the clusters of 02; leads are made only for them).
-# 2026-10-29: LEADS empty (CCF of leads reflects autocorrelation), WINDOWS [12] (2026-10-30; windows 12-14 are equivalent in 02), KEPT_BLOCKS spectral/rain/calendar.
-# 2026-10-29: SPECTRAL chosen by the user from the clusters of 02 (REDUNDANCY_THRESHOLD 0.6). FINAL_COLUMNS = the 7 columns of V3 chosen by the user (2026-10-29; 05 alone kept only sin_doy, which loses to the climatology). 2026-10-28 (provisional, to be reviewed): KEPT_BLOCKS = all blocks because V1-V3 (no calendar) are far worse than V4 in 05 and the
-# "simplest within noise" rule picked V1, which leaves no columns. FINAL_COLUMNS = output of 05 with
-# those blocks (re-set 2026-10-29 after SPECTRAL changed; provisional). MODEL and MODEL_PARAMS are filled from 06.
+# 2026-10-29: SPECTRAL chosen by the user from the clusters of 02 (REDUNDANCY_THRESHOLD 0.6). LEADS empty
+# (the CCF of the leads reflects autocorrelation).
+# 2026-11-01: no variable selection before training (permutation, stability and ablation removed); FINAL_COLUMNS
+# chosen by the user. WINDOWS [14] (windows 12-14 are equivalent in 02). MODEL and MODEL_PARAMS are filled from 06.
+# 2026-11-01: SPECTRAL = the 8 indices + bands I1, I2, I3 (user's choice); FINAL_COLUMNS = SPECTRAL + rain + calendar.
 DECISIONS = {
-    "sdh1": {"LEADS": [], "WINDOWS": [12],
-             "SPECTRAL": ["str2", "ndmi", "ndvi", "nbr"],
-             "KEPT_BLOCKS": ["spectral", "rain", "calendar"], "FINAL_COLUMNS": ["str2", "ndmi", "ndvi", "nbr", "pr_12d", "sin_doy", "cos_doy"], "MODEL": None, "MODEL_PARAMS": None},
-    "sdh2": {"LEADS": [], "WINDOWS": [12],
+    "sdh1": {"LEADS": [], "WINDOWS": [14],
+             "SPECTRAL": ["ndvi", "gndvi", "ndwi", "mndwi", "ndmi", "nbr", "str1", "str2", "I1", "I2", "I3"],
+             "FINAL_COLUMNS": ["ndvi", "gndvi", "ndwi", "mndwi", "ndmi", "nbr", "str1", "str2", "I1", "I2", "I3",
+                               "pr_14d", "sin_doy", "cos_doy"], "MODEL": None, "MODEL_PARAMS": None},
+    "sdh2": {"LEADS": [], "WINDOWS": [14],
              "SPECTRAL": None,
-             "KEPT_BLOCKS": None, "FINAL_COLUMNS": ["str2", "ndmi", "ndvi", "nbr", "pr_12d", "sin_doy", "cos_doy"], "MODEL": None, "MODEL_PARAMS": None},
+             "FINAL_COLUMNS": ["str2", "ndmi", "ndvi", "nbr", "pr_14d", "sin_doy", "cos_doy"], "MODEL": None, "MODEL_PARAMS": None},
 }
 
 
 def check_config():
-    for version, names in ABLATION_VERSIONS.items():
-        assert set(names) <= set(BLOCKS), f"ABLATION_VERSIONS {version} has unknown blocks"
     assert isinstance(DEV_YEARS, int) and DEV_YEARS > 0, "DEV_YEARS must be a positive int"
     for site, decisions in DECISIONS.items():
         assert site in SITES, f"DECISIONS has unknown site {site}"
@@ -96,7 +93,6 @@ def check_config():
             ok = (name == "LEADS" or len(values) > 0) and all(isinstance(v, int) and v > 0 for v in values)
             assert ok, f"{site}.{name} must be positive integers, got {values}"
             assert len(set(values)) == len(values), f"{site}.{name} has repeated values"
-        assert decisions["KEPT_BLOCKS"] is None or set(decisions["KEPT_BLOCKS"]) <= set(BLOCKS), f"{site}.KEPT_BLOCKS has unknown blocks"
         for name in ("SPECTRAL", "FINAL_COLUMNS"):
             values = decisions[name]
             assert values is None or len(set(values)) == len(values), f"{site}.{name} has repeated values"

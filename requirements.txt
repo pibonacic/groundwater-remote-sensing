@@ -3,5 +3,4 @@ pandas
 scipy
 matplotlib
 scikit-learn
-xgboost
 catboost
