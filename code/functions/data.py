@@ -45,23 +45,44 @@ def apply_nbar_qa(df, rules):
     return out
 
 
-def compute_indices(df, bands):
-    """Spectral indices from NBAR band columns; bands maps green/red/nir/swir1/swir2 to columns.
+SAVI_L = 0.5            # soil adjustment factor of SAVI
+EVI2_L, EVI2_G = 1.0, 2.5   # canopy background adjustment and gain of EVI2
+NDSINW_BETA = 0.05      # offset of NDSInw
 
-    ndvi (nir-red), gndvi (nir-green), ndwi (green-nir), mndwi (green-swir1),
-    ndmi (nir-swir1), nbr (nir-swir2) are normalized differences; str1 and str2 are
-    the SWIR transformed reflectance (1 - swir)^2 / (2 * swir).
+
+def compute_indices(df, bands):
+    """Spectral indices from NBAR band columns; bands maps red/nir/swir1 to columns.
+
+    ndvi (nir-red), ndmi (nir-swir1), ndsaii (red-swir1) are normalized differences;
+    str1 is the SWIR transformed reflectance (1 - swir1)^2 / (2 * swir1); dvi = nir - red;
+    mlswi26 = (1 - nir - swir1) / (1 - nir + swir1); savi and evi2 are the soil-adjusted and
+    two-band enhanced vegetation indices; bai = red + swir1 - nir; s3 = nir (red - swir1) / ((nir + red) (nir + swir1)).
+    csiswir = (nir + swir1) / 2; mi = (nir - swir1) / (nir swir1); ndsinw = (nir - swir1 - beta) / (nir + swir1);
+    baim = 1 / ((0.05 - nir)^2 + (0.2 - swir1)^2); nli = (nir^2 - red) / (nir^2 + red);
+    bai_burn = 1 / ((0.1 - red)^2 + (0.06 - nir)^2) (the burned area index, not the bai above);
+    snirvswir = (nir - red - swir1^2) / (nir + red + swir1^2) * nir. The SWIR2 band is not used: baim and snirvswir take swir1.
     """
-    g, r, n, s1, s2 = (df[bands[k]] for k in ("green", "red", "nir", "swir1", "swir2"))
+    r, n, s1 = (df[bands[k]] for k in ("red", "nir", "swir1"))
 
     def nd(a, b):
         return (a - b) / (a + b)
 
     return pd.DataFrame({
-        "ndvi": nd(n, r), "gndvi": nd(n, g), "ndwi": nd(g, n),
-        "mndwi": nd(g, s1), "ndmi": nd(n, s1), "nbr": nd(n, s2),
+        "ndvi": nd(n, r), "ndmi": nd(n, s1), "ndsaii": nd(r, s1),
         "str1": (1 - s1) ** 2 / (2 * s1.where(s1 != 0)),
-        "str2": (1 - s2) ** 2 / (2 * s2.where(s2 != 0)),
+        "dvi": n - r,
+        "mlswi26": (1 - n - s1) / (1 - n + s1),
+        "savi": (1 + SAVI_L) * (n - r) / (n + r + SAVI_L),
+        "evi2": EVI2_G * (n - r) / (n + 2.4 * r + EVI2_L),
+        "bai": r + s1 - n,
+        "s3": n * (r - s1) / ((n + r) * (n + s1)),
+        "csiswir": (n + s1) / 2,
+        "mi": (n - s1) / (n * s1),
+        "ndsinw": (n - s1 - NDSINW_BETA) / (n + s1),
+        "baim": 1 / ((0.05 - n) ** 2 + (0.2 - s1) ** 2),
+        "nli": (n ** 2 - r) / (n ** 2 + r),
+        "bai_burn": 1 / ((0.1 - r) ** 2 + (0.06 - n) ** 2),
+        "snirvswir": (n - r - s1 ** 2) / (n + r + s1 ** 2) * n,
     })
 
 

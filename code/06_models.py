@@ -6,7 +6,8 @@ from functions.data import save_table
 from functions.features import load_development, season_of
 from functions.models import (
     MODEL_SPECS, SeasonalClimatology, build_pipeline, enet_params, pipeline_grid, pipeline_simplest, tune)
-from functions.plots import bootstrap_ci_plot, folds_bars, folds_boxplot, halves_plot, oof_joint_plot, splits_plot
+from functions.plots import (
+    bootstrap_ci_plot, folds_bars, folds_boxplot, halves_plot, halves_seasons_plot, oof_joint_plot, splits_plot, taylor_plot)
 from functions.validation import block_bootstrap, compare, make_split_sets, oof_report, split_roles, summarize_folds
 
 SITE = "sdh1"
@@ -25,7 +26,6 @@ enet = enet_params(0, cfg.INNER_SPLITS, cfg.ENET_L1_RATIOS, cfg.ENET_MAX_ITER)
 split_sets = make_split_sets(X.index, cfg.GAP, cfg.N_SPLITS, cfg.TEST_SIZE, cfg.MIN_TRAIN)
 roles, blocks = split_roles(X.index, split_sets["joint"])
 limits = cfg.SITES[SITE]["physical_range_cm"]
-low, high = limits
 
 # 2. Tune every candidate on the folds of joint: the most regularized configuration within one
 #    paired standard error (fold-by-fold differences) of the lowest mean RMSE.
@@ -39,9 +39,9 @@ for name in MODEL_SPECS:
 
 # 3. Evaluate the tuned models and the climatology on joint and on halves_fwd / halves_bwd, fold by fold;
 #    skill against the monthly climatology on the same test rows.
-by_fold, oof = compare(models, X, y, split_sets, "climatology", high - low)
+by_fold, oof = compare(models, X, y, split_sets, "climatology")
 summary = summarize_folds(by_fold)
-by_season = oof_report(oof, y, high - low, {"season": season_of(y.index)}, baseline="climatology")
+by_season = oof_report(oof, y, {"season": season_of(y.index)}, baseline="climatology")
 
 # 4. Block-bootstrap intervals of RMSE and skill on the halves predictions only (paired between models).
 halves = {scheme: oof[scheme] for scheme in ("halves_fwd", "halves_bwd")}
@@ -61,6 +61,9 @@ folds_boxplot(joint_folds, f"{SITE}: joint folds").savefig(out_dir / "folds_boxp
 folds_bars(joint_folds, f"{SITE}: joint folds").savefig(out_dir / "folds_bars.png", dpi=150)
 splits_plot(roles, blocks, y, f"{SITE}: joint folds (gap {cfg.GAP} days)").savefig(out_dir / "splits.png", dpi=150)
 halves_plot(y, halves, X.index[len(X) // 2], f"{SITE}: halves predictions").savefig(out_dir / "halves.png", dpi=150)
+halves_seasons_plot(y, halves, f"{SITE}: halves by season and year").savefig(out_dir / "halves_seasons.png", dpi=150)
+taylor_plot(by_season[by_season["stratum"] == "all"], f"{SITE}: Taylor diagram, pooled predictions").savefig(
+    out_dir / "taylor.png", dpi=150)
 bootstrap_ci_plot(boot, "climatology", f"{SITE}: halves (block bootstrap, {cfg.BOOTSTRAP_LEVEL:.0%} interval)").savefig(
     out_dir / "bootstrap_ci.png", dpi=150)
 

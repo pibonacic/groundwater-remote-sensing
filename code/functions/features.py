@@ -8,7 +8,6 @@ from functions.data import compute_indices, load_table
 
 LEAD_SUFFIX = "_lead{k}"
 RAIN_PREFIX = "pr_"                      # rain columns are pr_{w}d
-CALENDAR_COLS = ["sin_doy", "cos_doy"]
 TARGET = "gw_cm"
 SEASON_BY_MONTH = {12: "DJF", 1: "DJF", 2: "DJF", 3: "MAM", 4: "MAM", 5: "MAM",
                    6: "JJA", 7: "JJA", 8: "JJA", 9: "SON", 10: "SON", 11: "SON"}

@@ -14,9 +14,19 @@ def _spearman(a, b, min_pairs):
     return rho, p, len(pair)
 
 
-def monthly_anomaly(s):
-    """Subtract the calendar-month mean."""
-    return s - s.groupby(s.index.month).transform("mean")
+def seasonal_anomaly(s, half_window):
+    """Subtract the mean of the same time of the year: all the days, in every year, within half_window days
+    before or after the day of the year (the window wraps around the end of the year; Dec 31 of a leap year
+    counts as day 365). s is a Series or DataFrame with a daily DatetimeIndex."""
+    doy = pd.Series(np.minimum(s.index.dayofyear, 365), index=s.index)
+
+    def window_sum(x):
+        x = x.reindex(range(1, 366), fill_value=0)
+        wrapped = pd.concat([x.iloc[-half_window:], x, x.iloc[:half_window]])
+        return wrapped.rolling(2 * half_window + 1).sum().iloc[2 * half_window:].set_axis(x.index)
+
+    clim = window_sum(s.groupby(doy).sum()) / window_sum(s.groupby(doy).count())
+    return s - clim.reindex(doy.to_numpy()).set_axis(s.index)
 
 
 def spearman_signs(X, y, min_pairs):
@@ -48,17 +58,17 @@ def cross_correlation(x, y, ks, min_pairs):
     return pd.Series({k: _spearman(x.shift(-k), y, min_pairs)[0] for k in ks}, name=x.name)
 
 
-def lead_table(spectral, y, ks, min_pairs):
-    """CCF of each spectral column against y, raw and as monthly anomalies.
+def lead_table(spectral, y, ks, min_pairs, half_window):
+    """CCF of each spectral column against y, raw and as seasonal anomalies (see seasonal_anomaly).
 
     Returns (summary, ccf_raw, ccf_anom, proposed_leads). The proposal takes the
     best k >= 1 (anomalies) of the two indices with the largest |rho| there; it is
     a starting point for LEADS, not a decision.
     """
     ccf_raw = pd.DataFrame({c: cross_correlation(spectral[c], y, ks, min_pairs) for c in spectral})
-    y_anom = monthly_anomaly(y)
+    y_anom = seasonal_anomaly(y, half_window)
     ccf_anom = pd.DataFrame({
-        c: cross_correlation(monthly_anomaly(spectral[c]), y_anom, ks, min_pairs) for c in spectral})
+        c: cross_correlation(seasonal_anomaly(spectral[c], half_window), y_anom, ks, min_pairs) for c in spectral})
 
     rows = []
     for kind, ccf in (("raw", ccf_raw), ("anomaly", ccf_anom)):

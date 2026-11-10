@@ -53,13 +53,9 @@ def make_split_sets(index, gap, n_splits, test_size, min_train):
     return {"joint": joint, **halves_splits(index, gap)}
 
 
-def bias(y, pred):
-    """Mean error (pred - y); positive = over-prediction."""
+def mean_residual(y, pred):
+    """Mean residual (pred - y); positive = over-prediction."""
     return float(np.mean(np.asarray(pred) - np.asarray(y)))
-
-
-def nrmse(y, pred, value_range):
-    return root_mean_squared_error(y, pred) / value_range
 
 
 def skill_score(y, pred, pred_base):
@@ -67,7 +63,38 @@ def skill_score(y, pred, pred_base):
     return 1 - root_mean_squared_error(y, pred) / root_mean_squared_error(y, pred_base)
 
 
-def metrics_table(y, pred, value_range, strata=None, baselines=None):
+def pearson_r(y, pred):
+    """Pearson correlation; NaN when either series is constant."""
+    y, pred = np.asarray(y, float), np.asarray(pred, float)
+    if y.std() == 0 or pred.std() == 0:
+        return np.nan
+    return float(np.corrcoef(y, pred)[0, 1])
+
+
+def sd_ratio(y, pred):
+    """Standard deviation of the predictions over that of the observations."""
+    return float(np.std(pred) / np.std(y))
+
+
+def centered_rmse(y, pred):
+    """RMSE after removing the mean of each series (the mean residual does not count)."""
+    y, pred = np.asarray(y, float), np.asarray(pred, float)
+    return float(np.sqrt(np.mean(((pred - pred.mean()) - (y - y.mean())) ** 2)))
+
+
+def normalized_bias(y, pred):
+    """Mean residual over the standard deviation of the observations, (mean(pred) - mean(y)) / std(y)."""
+    return float((np.mean(pred) - np.mean(y)) / np.std(y))
+
+
+def kge(y, pred):
+    """Kling-Gupta efficiency with a normalized bias: 1 - sqrt((r - 1)^2 + (alpha - 1)^2 + B^2), where r is the
+    Pearson correlation, alpha = sd_ratio and B = normalized_bias. 1 is a perfect fit (r = 1, alpha = 1, B = 0).
+    """
+    return float(1 - np.sqrt((pearson_r(y, pred) - 1) ** 2 + (sd_ratio(y, pred) - 1) ** 2 + normalized_bias(y, pred) ** 2))
+
+
+def metrics_table(y, pred, strata=None, baselines=None):
     """All metrics overall and per group of each stratum (labels aligned with y).
 
     baselines maps a name to baseline predictions; adds a skill_vs_<name> column.
@@ -78,8 +105,8 @@ def metrics_table(y, pred, value_range, strata=None, baselines=None):
         for group, idx in labels.groupby(labels).groups.items():
             yt, pt = y.loc[idx], pred.loc[idx]
             row = {"stratum": stratum, "group": group, "n": len(yt), "rmse": root_mean_squared_error(yt, pt),
-                   "mae": mean_absolute_error(yt, pt), "bias": bias(yt, pt),
-                   "nrmse": nrmse(yt, pt, value_range)}
+                   "mae": mean_absolute_error(yt, pt), "mean_residual": mean_residual(yt, pt), "norm_bias": normalized_bias(yt, pt),
+                   "r": pearson_r(yt, pt), "sd_ratio": sd_ratio(yt, pt), "crmse": centered_rmse(yt, pt), "kge": kge(yt, pt)}
             for name, base in baselines.items():
                 row[f"skill_vs_{name}"] = skill_score(yt, pt, base.loc[idx])
             rows.append(row)
@@ -99,11 +126,11 @@ def evaluate(estimator, X, y, splits):
         y_test = y.iloc[test]
         oof.iloc[test] = pred
         rows.append({"fold": i, "n_test": len(test), "rmse": root_mean_squared_error(y_test, pred),
-                     "mae": mean_absolute_error(y_test, pred), "bias": bias(y_test, pred)})
+                     "mae": mean_absolute_error(y_test, pred), "mean_residual": mean_residual(y_test, pred)})
     return {"oof": oof, "folds": pd.DataFrame(rows).set_index("fold")}
 
 
-FOLD_METRICS = ["rmse", "mae", "bias", "nrmse", "skill"]
+FOLD_METRICS = ["rmse", "mae", "mean_residual", "norm_bias", "skill", "r", "sd_ratio", "crmse", "kge"]
 
 
 def fold_direction(scheme, i, n_folds):
@@ -114,7 +141,7 @@ def fold_direction(scheme, i, n_folds):
     return ("bwd" if scheme == "halves_bwd" else "fwd"), i + 1
 
 
-def compare(models, X, y, split_sets, baseline, value_range):
+def compare(models, X, y, split_sets, baseline):
     """Evaluate every model on every fold scheme.
 
     Returns (by_fold, oof): by_fold has one row per model x scheme x fold x metric (FOLD_METRICS; skill is against the
@@ -129,7 +156,7 @@ def compare(models, X, y, split_sets, baseline, value_range):
             idx = y.index[test]
             base = {baseline: oof[scheme][baseline][idx]}
             for model, pred in oof[scheme].items():
-                m = metrics_table(y[idx], pred[idx], value_range, baselines=base).iloc[0]
+                m = metrics_table(y[idx], pred[idx], baselines=base).iloc[0]
                 m["skill"] = m[f"skill_vs_{baseline}"]
                 rows += [{"model": model, "scheme": scheme, "fold": fold, "direction": direction,
                           "metric": metric, "value": m[metric]} for metric in FOLD_METRICS]
@@ -169,7 +196,7 @@ def split_roles(index, joint):
     return roles, pd.DataFrame(rows)
 
 
-def oof_report(oof, y, value_range, strata, baseline):
+def oof_report(oof, y, strata, baseline):
     """metrics_table of the pooled out-of-fold predictions of each scheme x model."""
     frames = []
     for scheme, by_model in oof.items():
@@ -177,7 +204,7 @@ def oof_report(oof, y, value_range, strata, baseline):
         base = {baseline: by_model[baseline][tested]}
         labels = {name: s[tested] for name, s in strata.items()}
         for model, pred in by_model.items():
-            table = metrics_table(y[tested], pred[tested], value_range, labels, base)
+            table = metrics_table(y[tested], pred[tested], labels, base)
             frames.append(table.assign(scheme=scheme, model=model))
     return pd.concat(frames, ignore_index=True)
 

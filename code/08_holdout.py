@@ -20,7 +20,6 @@ out_dir.mkdir(parents=True, exist_ok=True)
 X_dev, y_dev = load_development(cfg.PROCESSED_DIR / f"dev_{SITE}.csv")
 X_hold, y_hold = load_development(cfg.PROCESSED_DIR / f"holdout_{SITE}.csv")
 limits = cfg.SITES[SITE]["physical_range_cm"]
-low, high = limits
 
 # 2. Hyperparameters chosen in 06 (the "chosen" row of each model in tuning.csv); nothing is tuned here.
 tuning = pd.read_csv(cfg.OUTPUTS_DIR / SITE / "06_models" / "tuning.csv")
@@ -37,7 +36,7 @@ preds = {"holdout": {name: pd.Series(model.fit(X_dev, y_dev).predict(X_hold), in
 
 # 4. Metrics overall, by season and by month; skill against the climatology.
 strata = {"season": season_of(y_hold.index), "month": pd.Series(y_hold.index.month, index=y_hold.index)}
-metrics = oof_report(preds, y_hold, high - low, strata, baseline="climatology")
+metrics = oof_report(preds, y_hold, strata, baseline="climatology")
 
 # 5. Block-bootstrap intervals of RMSE and skill (paired between models).
 boot = block_bootstrap(y_hold, preds, "climatology", cfg.BOOTSTRAP_BLOCK_DAYS, cfg.N_BOOTSTRAP, cfg.BOOTSTRAP_LEVEL, cfg.SEED)
@@ -57,7 +56,7 @@ bootstrap_ci_plot(boot, "climatology", f"{SITE}: holdout (block bootstrap, {cfg.
 print(f"{SITE}: trained on {len(y_dev)} days ({y_dev.index.min().date()} to {y_dev.index.max().date()}), "
       f"holdout {len(y_hold)} days ({y_hold.index.min().date()} to {y_hold.index.max().date()})")
 print("parameters:", {k: {p.removeprefix("model__"): v for p, v in b.items()} for k, b in params.items()})
-cols = ["model", "group", "n", "rmse", "mae", "bias", "nrmse", "skill_vs_climatology"]
+cols = ["model", "group", "n", "rmse", "mae", "mean_residual", "skill_vs_climatology"]
 print(metrics[metrics["stratum"] == "all"][cols].round(3).to_string(index=False))
 print("skill by month:\n", metrics[metrics["stratum"] == "month"].pivot_table(
     index="model", columns="group", values="skill_vs_climatology", sort=False).round(2).to_string())

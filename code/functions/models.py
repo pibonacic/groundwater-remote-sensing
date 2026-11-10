@@ -4,13 +4,12 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import ElasticNetCV, LinearRegression
+from sklearn.linear_model import ElasticNetCV
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 from catboost import CatBoostRegressor
 
-from functions.features import CALENDAR_COLS
 
 CLIP_PREFIX = "model__regressor__"       # grid keys of the model inside the pipeline built by build_pipeline
 
@@ -18,24 +17,15 @@ CLIP_PREFIX = "model__regressor__"       # grid keys of the model inside the pip
 class SeasonalClimatology(RegressorMixin, BaseEstimator):
     """Mean water level per calendar month of the training data.
 
-    Months absent from the training data get the overall mean. With harmonics=True a
-    smooth seasonal curve (sin_doy, cos_doy) is fitted instead of monthly means.
+    Months absent from the training data get the overall mean.
     """
 
-    def __init__(self, harmonics=False):
-        self.harmonics = harmonics
-
     def fit(self, X, y):
-        if self.harmonics:
-            self.model_ = LinearRegression().fit(X[CALENDAR_COLS], y)
-        else:
-            self.monthly_ = y.groupby(X.index.month).mean()
-            self.mean_ = y.mean()
+        self.monthly_ = y.groupby(X.index.month).mean()
+        self.mean_ = y.mean()
         return self
 
     def predict(self, X):
-        if self.harmonics:
-            return self.model_.predict(X[CALENDAR_COLS])
         return X.index.month.map(self.monthly_).fillna(self.mean_).to_numpy()
 
 
@@ -148,7 +138,8 @@ def tune(pipeline, grid, simplest, X, y, split_sets):
     (rmse_fold_1, ...), its mean and std across folds, within_noise, lowest (lowest mean) and chosen.
     """
     joint = split_sets["joint"]
-    search = GridSearchCV(pipeline, grid, cv=joint, scoring="neg_root_mean_squared_error", refit=False).fit(X, y)
+    search = GridSearchCV(pipeline, grid, cv=joint, scoring="neg_root_mean_squared_error", refit=False,
+                          n_jobs=-1).fit(X, y)
     params = search.cv_results_["params"]
     scores = -np.array([search.cv_results_[f"split{i}_test_score"] for i in range(len(joint))])
     summary = pd.DataFrame({"params": params, **{f"rmse_fold_{i + 1}": fold for i, fold in enumerate(scores)},

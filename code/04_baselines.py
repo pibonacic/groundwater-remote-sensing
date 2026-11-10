@@ -15,26 +15,24 @@ out_dir.mkdir(parents=True, exist_ok=True)
 
 # 1. Load the development period only (the holdout is never loaded here).
 X, y = load_development(cfg.PROCESSED_DIR / f"dev_{SITE}.csv")
-low, high = cfg.SITES[SITE]["physical_range_cm"]
 
 # 2. Fold schemes: joint (expanding training window, forward folds and their backward mirror) to evaluate
 #    the out-of-fold predictions, and the diagnostic halves_fwd / halves_bwd (one cut each) for the bootstrap.
 split_sets = make_split_sets(X.index, cfg.GAP, cfg.N_SPLITS, cfg.TEST_SIZE, cfg.MIN_TRAIN)
 
-# 3. Reference models: monthly climatology (and a smooth sin/cos version) and an
-#    Elastic Net on all features (inner CV without gap). Any later model has to beat these.
+# 3. Reference models: monthly climatology and an Elastic Net on all features (inner CV without gap).
+#    Any later model has to beat these.
 models = {
     "climatology": SeasonalClimatology(),
-    "climatology_harmonic": SeasonalClimatology(harmonics=True),
     "linear": make_linear_baseline(0, cfg.INNER_SPLITS, cfg.ENET_L1_RATIOS, cfg.ENET_MAX_ITER),
 }
 
 # 4. Evaluate each model on each scheme, fold by fold; skill is measured against the climatology.
-by_fold, oof = compare(models, X, y, split_sets, "climatology", high - low)
+by_fold, oof = compare(models, X, y, split_sets, "climatology")
 summary = summarize_folds(by_fold)
 
 # 5. Pooled out-of-fold error overall and per season (always report by season).
-by_season = oof_report(oof, y, high - low, {"season": season_of(y.index)}, baseline="climatology")
+by_season = oof_report(oof, y, {"season": season_of(y.index)}, baseline="climatology")
 
 # 6. Block-bootstrap intervals of RMSE and skill on the halves predictions only, then save the tables,
 #    the joint out-of-fold predictions and a figure.

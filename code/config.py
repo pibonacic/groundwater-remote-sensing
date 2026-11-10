@@ -11,6 +11,7 @@ OUTPUTS_DIR = ROOT / "outputs"
 DEV_YEARS = 2               # development = first DEV_YEARS years from the first piezometer day; everything after goes to the holdout
 MIN_PAIRS = 30              # minimum overlapping days to compute a correlation
 CCF_KS = range(-30, 31)     # k > 0: spectral value k days AFTER the water level
+ANOMALY_HALF_WINDOW = 15      # anomalies (and the window climatology of 04) use the mean of the days within this many days either side of the day of the year
 RAIN_WINDOWS = [3, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 30]   # candidate accumulation windows (days) for exploration
 RAIN_MOISTURE_INDEX = "str1"            # index whose anomaly responds to rain
 REGIME_THRESHOLD_CM = 0     # water level at/below this = "below surface" regime
@@ -21,7 +22,7 @@ TEST_SIZE = 70              # days per test fold
 MIN_TRAIN = 365             # days in the first training set
 GAP = 15                    # days dropped between train and test (joint, halves) and between development and holdout
 INNER_SPLITS = 3            # temporal folds inside ElasticNetCV (no gap)
-ENET_L1_RATIOS = [0.1, 0.5, 0.9, 1.0]
+ENET_L1_RATIOS = [0.01, 0.1, 0.5, 0.9, 1.0]   # 0.01 is almost a Ridge regression
 ENET_MAX_ITER = 200000
 SEED = 0                    # random state of every stochastic step
 
@@ -31,8 +32,8 @@ BOOTSTRAP_LEVEL = 0.95      # confidence level of the intervals
 
 REDUNDANCY_THRESHOLD = 0.6  # |Spearman| above which two bands/indices count as redundant (exploration only)
 
-# VIIRS NBAR band behind each generic name used by the spectral indices.
-BANDS = {"green": "M4", "red": "I1", "nir": "I2", "swir1": "I3", "swir2": "M11"}
+# VIIRS NBAR band behind each generic name used by the spectral indices (only the I bands).
+BANDS = {"red": "I1", "nir": "I2", "swir1": "I3"}
 
 # ---------------------------------------------------------------- SITES
 SITES = {
@@ -71,11 +72,20 @@ for _site in SITES.values():
 # 2026-11-01: no variable selection before training (permutation, stability and ablation removed); FINAL_COLUMNS
 # chosen by the user. WINDOWS [14] (windows 12-14 are equivalent in 02). MODEL and MODEL_PARAMS are filled from 06.
 # 2026-11-01: SPECTRAL = the 8 indices + bands I1, I2, I3 (user's choice); FINAL_COLUMNS = SPECTRAL + rain + calendar.
+# 2026-11-02: indices that need M bands removed (gndvi, ndwi, mndwi, nbr, str2); added ndsaii, dvi, mlswi26, savi, evi2,
+# bai, s3. SPECTRAL = all the indices that remain + I1, I2, I3, pending the redundancy review of 02 (M bands excluded there).
+# 2026-11-02: evi2, s3 and I3 dropped from SPECTRAL / FINAL_COLUMNS (user's choice; 06 compared before and after).
+# 2026-11-02: SPECTRAL reduced to ndvi, dvi, mlswi26, str1, ndsaii, ndmi (no raw bands; user's choice, 06 compared).
+# 2026-11-03: SPECTRAL = all 17 indices (vibi dropped; baim and snirvswir use I3) + I1, I2, I3; FINAL_COLUMNS adds rain + calendar.
+# 2026-11-03: evi2, baim, csiswir, bai and s3 dropped from SPECTRAL / FINAL_COLUMNS (user's choice; 06 compared).
+# 2026-11-03: sdh1 WINDOWS emptied: no accumulated rain in the feature table (user's choice; 04 and 06 compared).
+# 2026-11-03: rain window 14 restored in sdh1 (WINDOWS [14], pr_14d in FINAL_COLUMNS).
 DECISIONS = {
-    "sdh1": {"LEADS": [], "WINDOWS": [14],
-             "SPECTRAL": ["ndvi", "gndvi", "ndwi", "mndwi", "ndmi", "nbr", "str1", "str2", "I1", "I2", "I3"],
-             "FINAL_COLUMNS": ["ndvi", "gndvi", "ndwi", "mndwi", "ndmi", "nbr", "str1", "str2", "I1", "I2", "I3",
-                               "pr_14d", "sin_doy", "cos_doy"], "MODEL": None, "MODEL_PARAMS": None},
+    "sdh1": {"LEADS": [], "WINDOWS": [],
+             "SPECTRAL": ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn",
+                          "snirvswir", "I1", "I2", "I3"],
+             "FINAL_COLUMNS": ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn",
+                               "snirvswir", "I1", "I2", "I3", "sin_doy", "cos_doy"], "MODEL": None, "MODEL_PARAMS": None},
     "sdh2": {"LEADS": [], "WINDOWS": [14],
              "SPECTRAL": None,
              "FINAL_COLUMNS": ["str2", "ndmi", "ndvi", "nbr", "pr_14d", "sin_doy", "cos_doy"], "MODEL": None, "MODEL_PARAMS": None},
@@ -90,7 +100,7 @@ def check_config():
             values = decisions[name]
             if values is None:
                 continue
-            ok = (name == "LEADS" or len(values) > 0) and all(isinstance(v, int) and v > 0 for v in values)
+            ok = all(isinstance(v, int) and v > 0 for v in values)
             assert ok, f"{site}.{name} must be positive integers, got {values}"
             assert len(set(values)) == len(values), f"{site}.{name} has repeated values"
         for name in ("SPECTRAL", "FINAL_COLUMNS"):
