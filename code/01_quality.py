@@ -5,7 +5,7 @@ from functions.data import (
     align_sources, mask_reflectance_outliers, quality_report, interpolate_nbar, save_table)
 from functions.plots import quality_overview_plot
 
-SITE = "sdh1"
+SITE = "sdh2"
 
 site = cfg.SITES[SITE]
 out_dir = cfg.OUTPUTS_DIR / SITE / "01_quality"
@@ -15,6 +15,9 @@ out_dir.mkdir(parents=True, exist_ok=True)
 piezo = normalize_piezometer(
     load_piezometer(site["piezo_path"], site["piezo_column"]), site["piezo_unit"], site["piezo_zero_cm"],
     site["piezo_sign"])
+# Records before piezo_start are dropped (known bad data); the development period starts at the first day kept.
+if site["piezo_start"] is not None:
+    piezo = piezo.loc[site["piezo_start"]:]
 
 # 2. VIIRS NBAR: values are kept as they are; qa_low only marks days with a flag other than the good ones.
 nbar = apply_nbar_qa(load_nbar(site["nbar_path"]), site["nbar_qa"])

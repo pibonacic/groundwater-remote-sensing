@@ -4,7 +4,7 @@ from functions.data import load_table, save_table
 from functions.features import (
     TARGET, build_feature_table, compute_partition, split_dev_holdout)
 
-SITE = "sdh1"
+SITE = "sdh2"
 
 leads = cfg.DECISIONS[SITE]["LEADS"]
 windows = cfg.DECISIONS[SITE]["WINDOWS"]

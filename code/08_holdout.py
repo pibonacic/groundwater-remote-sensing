@@ -10,7 +10,7 @@ from functions.models import MODEL_SPECS, SeasonalClimatology, build_pipeline, e
 from functions.plots import bootstrap_ci_plot, oof_predictions_plot, season_metrics_plot
 from functions.validation import block_bootstrap, metrics_table
 
-SITE = "sdh1"
+SITE = "sdh2"
 BASELINE = "climatology"
 
 decisions = cfg.DECISIONS[SITE]

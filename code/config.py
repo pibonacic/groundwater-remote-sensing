@@ -16,13 +16,12 @@ RAIN_WINDOWS = [3, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 30]   # candidate 
 RAIN_MOISTURE_INDEX = "str1"            # index whose anomaly responds to rain
 REGIME_THRESHOLD_CM = 0     # depth above this = "below surface" regime (depth is positive below the surface)
 
-# Validation folds (hv_blocks, counted in days): consecutive validation blocks of HV_V days from the first development
-# day (the last block absorbs the remainder), with HV_H days dropped from the training set on each side of the block
+# Validation folds (hv_blocks, counted in days): consecutive validation blocks of hv_v days from the first development
+# day (the last block absorbs the remainder), with hv_h days dropped from the training set on each side of the block
 # (no gap before the first block nor after the last one).
-HV_V = 60                   # days per validation block
-HV_H = 50                   # days dropped on each side of the validation block
-GAP = 15                    # days dropped between development and holdout
-ACF_MAX_LAG = 120           # lags (days) of the ACF / PACF of the target in 02 (to explore HV_H)
+# (hv_v and hv_h are set per site in SITES).
+GAP = 0                     # days dropped between development and holdout
+ACF_MAX_LAG = 120           # lags (days) of the ACF / PACF of the target in 02 (to explore hv_h)
 INNER_SPLITS = 3            # temporal folds inside the ElasticNetCV of the hybrid model (no gap)
 ENET_L1_RATIOS = [0.01, 0.1, 0.5, 0.9, 1.0]   # 0.01 is almost a Ridge regression
 ENET_ALPHAS = [0.01, 0.03, 0.1, 0.3, 1, 3]   # alpha grid of the elastic_net candidate
@@ -44,14 +43,20 @@ SITES = {
     "sdh1": {
         "piezo_path": RAW_DIR / "groundwater" / "SDH1_daily-insitu-data.csv",
         "piezo_column": "SDH1PS01_gw-depth_m",
-        "nbar_path": RAW_DIR / "reflectance" / "SDH1_VIIRS_2012_01_2026_10.csv",
+        "nbar_path": RAW_DIR / "reflectance" / "SDH1_VIIRS_2012_01_2026_11.csv",
         "chirps_path": RAW_DIR / "precipitation" / "SDH1_CHIRPS_2012_01_01_2026_09_30.csv",
+        "piezo_start": None,                # first piezometer day kept ("YYYY-MM-DD"); None = all records
+        "hv_v": 60,                         # days per hv_blocks validation block
+        "hv_h": 50,                         # days dropped on each side of the validation block
     },
     "sdh2": {
         "piezo_path": RAW_DIR / "groundwater" / "SDH2_daily-insitu-data.csv",
         "piezo_column": "SDH2PP01_gw-depth_m",
-        "nbar_path": RAW_DIR / "reflectance" / "SDH2_VIIRS_2012_01_2026_10.csv",
+        "nbar_path": RAW_DIR / "reflectance" / "SDH2_VIIRS_2012_01_2026_11.csv",
         "chirps_path": RAW_DIR / "precipitation" / "SDH2_CHIRPS_2012_01_01_2026_09_30.csv",
+        "piezo_start": "2024-05-24",        # 2026-11-13: earlier records are wrong (user's review of 01)
+        "hv_v": 60,
+        "hv_h": 82,                         # 2026-11-13: from the ACF / PACF of 02 (user's choice)
     },
 }
 
@@ -92,9 +97,10 @@ DECISIONS = {
              "MODEL": None, 
              "MODEL_PARAMS": None
              },
-    "sdh2": {"LEADS": [], "WINDOWS": [14],
-             "SPECTRAL": None,
-             "FINAL_COLUMNS": ["str2", "ndmi", "ndvi", "nbr", "pr_14d", "sin_doy", "cos_doy"], 
+    "sdh2": {"LEADS": [], "WINDOWS": [],
+             "SPECTRAL": ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn",
+                          "snirvswir", "I1", "I2", "I3"],
+             "FINAL_COLUMNS": ['ndmi', 'savi', 'nli', 'I1', 'I3', 'sin_doy', 'cos_doy'], 
              "MODEL": None, 
              "MODEL_PARAMS": None},
 }

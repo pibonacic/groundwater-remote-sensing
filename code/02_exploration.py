@@ -9,7 +9,8 @@ from functions.features import compute_partition
 from functions.plots import (
     scatter_by_season, zscore_series_plot, ccf_plot, dendrogram_plot, rain_window_plot, acf_pacf_plot)
 
-SITE = "sdh1"
+SITE = "sdh2"
+hv_h = cfg.SITES[SITE]["hv_h"]   # hv_blocks folds of this site
 
 out_dir = cfg.OUTPUTS_DIR / SITE / "02_exploration"
 out_dir.mkdir(parents=True, exist_ok=True)
@@ -47,7 +48,7 @@ rain = rain_window_response(
 tree, clusters = redundancy_clusters(X.loc[y.dropna().index], cfg.REDUNDANCY_THRESHOLD)
 
 # 7. Memory of the target: ACF and PACF of the depth, raw and as seasonal anomaly, to choose the gap h of the
-#    hv_blocks folds (HV_H): the lag where the autocorrelation becomes negligible.
+#    hv_blocks folds (hv_h): the lag where the autocorrelation becomes negligible.
 memory = {"raw": acf_pacf(y, cfg.ACF_MAX_LAG), "anomaly": acf_pacf(seasonal_anomaly(y, cfg.ANOMALY_HALF_WINDOW), cfg.ACF_MAX_LAG)}
 acf_table = pd.concat(memory, axis=1)
 acf_table.columns = [f"{a}_{b}" for a, b in acf_table.columns]
@@ -71,7 +72,7 @@ dendrogram_plot(tree, list(X.columns), list(clusters.index[clusters["proposed"]]
 rain_window_plot(rain, f"{SITE}: rain window vs {cfg.RAIN_MOISTURE_INDEX} anomaly").savefig(
     out_dir / "rain_windows.png", dpi=150)
 
-acf_pacf_plot(memory, cfg.HV_H, f"{SITE}: ACF and PACF of the depth (development period)").savefig(
+acf_pacf_plot(memory, hv_h, f"{SITE}: ACF and PACF of the depth (development period)").savefig(
     out_dir / "acf_pacf.png", dpi=150)
 
 # 9. Summary. Then edit DECISIONS in config.py (regime, SPECTRAL, LEADS, WINDOWS) with date and reason.
@@ -82,7 +83,7 @@ print("regime days below/above surface:", int(regimes["n_below_surface"].iloc[0]
 for kind, table in memory.items():
     below = table.index[(table["acf"].abs() < table["conf"]) & (table.index > 0)]
     print(f"ACF {kind}: first lag inside the 95% band = {below.min() if len(below) else '>' + str(cfg.ACF_MAX_LAG)}; "
-          f"ACF at h={cfg.HV_H}: {table['acf'].loc[cfg.HV_H]:.3f}")
+          f"ACF at h={hv_h}: {table['acf'].loc[hv_h]:.3f}")
 print("leads:\n", leads.round(3).to_string(index=False))
 print("proposed LEADS:", proposed_leads)
 print("rain windows:\n", rain.round(3))

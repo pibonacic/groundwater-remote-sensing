@@ -8,7 +8,8 @@ from functions.models import MODEL_SPECS, SeasonalClimatology, build_pipeline, e
 from functions.plots import bootstrap_ci_plot, by_fold_boxplot, oof_predictions_plot, season_metrics_plot, taylor_plot
 from functions.validation import block_bootstrap, compare, hv_block_splits, metrics_table, summarize_folds
 
-SITE = "sdh1"
+SITE = "sdh2"
+hv_v, hv_h = cfg.SITES[SITE]["hv_v"], cfg.SITES[SITE]["hv_h"]   # hv_blocks folds of this site
 BASELINE = "climatology"
 
 decisions = cfg.DECISIONS[SITE]
@@ -21,7 +22,7 @@ out_dir.mkdir(parents=True, exist_ok=True)
 #    The inner ElasticNetCV of the hybrid has no gap.
 X, y = load_development(cfg.PROCESSED_DIR / f"dev_{SITE}.csv")
 enet = enet_params(0, cfg.INNER_SPLITS, cfg.ENET_L1_RATIOS, cfg.ENET_MAX_ITER)
-splits = hv_block_splits(X.index, cfg.HV_V, cfg.HV_H)
+splits = hv_block_splits(X.index, hv_v, hv_h)
 limits = cfg.SITES[SITE]["physical_range_cm"]
 
 # 2. Tune every candidate on the hv_blocks folds: the configuration with the lowest mean RMSE across folds.
@@ -62,7 +63,7 @@ taylor_plot(oof_metrics[oof_metrics["stratum"] == "all"], y.std(ddof=0),
 
 # 6. Summary. Then edit MODEL and MODEL_PARAMS in config.py with date and reason.
 print(f"{SITE}: {len(X)} development rows ({X.index.min().date()} to {X.index.max().date()}), "
-      f"columns {decisions['FINAL_COLUMNS']}, {len(splits)} hv_blocks folds (v={cfg.HV_V}, h={cfg.HV_H})")
+      f"columns {decisions['FINAL_COLUMNS']}, {len(splits)} hv_blocks folds (v={hv_v}, h={hv_h})")
 print("best parameters:", {k: {p.removeprefix('model__regressor__'): v for p, v in b.items()} for k, b in best_params.items()})
 print("by fold (mean / std):\n", summary.round(3).to_string())
 print("rmse by fold:\n", by_fold["rmse"].unstack("fold").round(2).to_string())

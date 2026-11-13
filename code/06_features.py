@@ -12,7 +12,8 @@ from functions.models import MODEL_SPECS, build_pipeline, enet_params
 from functions.plots import elimination_path_plot, readd_plot, shap_beeswarm_plot, shap_importance_plot
 from functions.validation import hv_block_splits, rmse_diff_bootstrap
 
-SITE = "sdh1"
+SITE = "sdh2"
+hv_v, hv_h = cfg.SITES[SITE]["hv_v"], cfg.SITES[SITE]["hv_h"]   # hv_blocks folds of this site
 MODEL = "hybrid"     # model of the backward elimination (retraining is the costly part; one model per run)
 
 decisions = cfg.DECISIONS[SITE]
@@ -23,7 +24,7 @@ start = time.time()
 # 1. Development period, hv_blocks folds and the hyperparameters chosen in 05 (kept fixed here). Every column is a
 #    unit of its own (sin_doy and cos_doy included); groups go in GROUPED_UNITS of functions/importance.py.
 X, y = load_development(cfg.PROCESSED_DIR / f"dev_{SITE}.csv")
-splits = hv_block_splits(X.index, cfg.HV_V, cfg.HV_H)
+splits = hv_block_splits(X.index, hv_v, hv_h)
 tuning = pd.read_csv(cfg.OUTPUTS_DIR / SITE / "05_models" / "tuning.csv")
 enet = enet_params(0, cfg.INNER_SPLITS, cfg.ENET_L1_RATIOS, cfg.ENET_MAX_ITER)
 limits = cfg.SITES[SITE]["physical_range_cm"]

@@ -32,14 +32,18 @@ def hv_block_splits(index, v, h):
 
 
 def hv_blocks_table(index, splits):
-    """One row per fold: dates of the validation block, days of gap before / after it and size of train and test."""
+    """One row per fold: dates of the validation block, days of gap before / after it and size of train and test.
+
+    The gap is every day between the block and the nearest training day; with no training day on one side, it runs
+    to the edge of the development period (0 only for the first block before it and the last one after it).
+    """
     rows = []
     for k, (train, test) in enumerate(splits, start=1):
         start, end = test.min(), test.max()
         before, after = train[train < start], train[train > end]
         rows.append({"fold": k, "test_start": index[start], "test_end": index[end], "n_test": len(test),
-                     "gap_before": start - (before.max() + 1 if len(before) else start),
-                     "gap_after": (after.min() if len(after) else end + 1) - end - 1,
+                     "gap_before": start - (before.max() + 1 if len(before) else 0),
+                     "gap_after": (after.min() if len(after) else len(index)) - end - 1,
                      "n_train": len(train)})
     return pd.DataFrame(rows).set_index("fold")
 
