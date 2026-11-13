@@ -42,14 +42,17 @@ def spearman_signs(X, y, min_pairs):
 
 
 def regime_check(X, y, threshold, min_pairs):
-    """Days of y above/below threshold and rho of each X column in each regime."""
-    above, below = y > threshold, y <= threshold
+    """Days below/above the surface and rho of each X column in each regime.
+
+    y is a depth (positive below the surface): depth > threshold is below the surface.
+    """
+    below, above = y > threshold, y <= threshold
     rows = {}
     for col in X:
-        rho_above, _, n_above = _spearman(X[col][above], y[above], min_pairs)
         rho_below, _, n_below = _spearman(X[col][below], y[below], min_pairs)
-        rows[col] = {"n_above": n_above, "n_below": n_below,
-                     "rho_above": rho_above, "rho_below": rho_below}
+        rho_above, _, n_above = _spearman(X[col][above], y[above], min_pairs)
+        rows[col] = {"n_below_surface": n_below, "n_above_surface": n_above,
+                     "rho_below_surface": rho_below, "rho_above_surface": rho_above}
     return pd.DataFrame(rows).T
 
 
@@ -115,3 +118,23 @@ def redundancy_clusters(X, threshold):
     table = pd.concat([clusters, mean_rho], axis=1)
     table["proposed"] = table.index.isin(mean_rho.groupby(clusters).idxmax())   # first one if tied
     return tree, table
+
+
+def acf_pacf(y, max_lag):
+    """Autocorrelation (ACF) and partial autocorrelation (PACF, Durbin-Levinson) of y for lags 0..max_lag.
+
+    y must be a series without gaps (NaN are dropped at the ends only). Returns a table indexed by lag with acf,
+    pacf and conf, the half-width of the approximate 95% band of no correlation (1.96 / sqrt(n)).
+    """
+    x = y.loc[y.first_valid_index():y.last_valid_index()]
+    if x.isna().any():
+        raise ValueError("acf_pacf needs a series without gaps")
+    x = x.to_numpy(float) - x.mean()
+    n = len(x)
+    acf = np.array([np.sum(x[:n - k] * x[k:]) for k in range(max_lag + 1)]) / np.sum(x * x)
+    pacf, phi = np.ones(max_lag + 1), np.zeros(0)
+    for k in range(1, max_lag + 1):
+        a = (acf[k] - phi @ acf[k - 1:0:-1]) / (1 - phi @ acf[1:k])
+        phi = np.r_[phi - a * phi[::-1], a]
+        pacf[k] = a
+    return pd.DataFrame({"acf": acf, "pacf": pacf, "conf": 1.96 / np.sqrt(n)}, index=pd.Index(range(max_lag + 1), name="lag"))

@@ -45,8 +45,8 @@ def build_feature_table(bands, precip, leads, windows, band_map, columns):
 
 
 def season_of(index):
-    """Season label per date (DJF = austral summer)."""
-    return pd.Series(index.month.map(SEASON_BY_MONTH), index=index)
+    """Season label per date (DJF = austral summer), ordered DJF, MAM, JJA, SON."""
+    return pd.Series(pd.Categorical(index.month.map(SEASON_BY_MONTH), categories=["DJF", "MAM", "JJA", "SON"]), index=index)
 
 
 def compute_partition(piezo_index, dev_years, separation_days):

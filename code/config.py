@@ -14,20 +14,24 @@ CCF_KS = range(-30, 31)     # k > 0: spectral value k days AFTER the water level
 ANOMALY_HALF_WINDOW = 15      # anomalies (and the window climatology of 04) use the mean of the days within this many days either side of the day of the year
 RAIN_WINDOWS = [3, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 30]   # candidate accumulation windows (days) for exploration
 RAIN_MOISTURE_INDEX = "str1"            # index whose anomaly responds to rain
-REGIME_THRESHOLD_CM = 0     # water level at/below this = "below surface" regime
+REGIME_THRESHOLD_CM = 0     # depth above this = "below surface" regime (depth is positive below the surface)
 
-# Validation folds (counted in days). The development must have exactly MIN_TRAIN + GAP + N_SPLITS * TEST_SIZE rows.
-N_SPLITS = 5                # number of forward folds (and as many backward) of the joint scheme
-TEST_SIZE = 70              # days per test fold
-MIN_TRAIN = 365             # days in the first training set
-GAP = 15                    # days dropped between train and test (joint, halves) and between development and holdout
-INNER_SPLITS = 3            # temporal folds inside ElasticNetCV (no gap)
+# Validation folds (hv_blocks, counted in days): consecutive validation blocks of HV_V days from the first development
+# day (the last block absorbs the remainder), with HV_H days dropped from the training set on each side of the block
+# (no gap before the first block nor after the last one).
+HV_V = 60                   # days per validation block
+HV_H = 50                   # days dropped on each side of the validation block
+GAP = 15                    # days dropped between development and holdout
+ACF_MAX_LAG = 120           # lags (days) of the ACF / PACF of the target in 02 (to explore HV_H)
+INNER_SPLITS = 3            # temporal folds inside the ElasticNetCV of the hybrid model (no gap)
 ENET_L1_RATIOS = [0.01, 0.1, 0.5, 0.9, 1.0]   # 0.01 is almost a Ridge regression
+ENET_ALPHAS = [0.01, 0.03, 0.1, 0.3, 1, 3]   # alpha grid of the elastic_net candidate
 ENET_MAX_ITER = 200000
 SEED = 0                    # random state of every stochastic step
 
 N_BOOTSTRAP = 1000          # block-bootstrap resamples of the out-of-fold predictions
-BOOTSTRAP_BLOCK_DAYS = 30
+BOOTSTRAP_BLOCK_DAYS = 30           # block length of the bootstrap on the out-of-fold predictions (05)
+BOOTSTRAP_BLOCK_DAYS_HOLDOUT = 15   # block length of the bootstrap on the holdout predictions (08)
 BOOTSTRAP_LEVEL = 0.95      # confidence level of the intervals
 
 REDUNDANCY_THRESHOLD = 0.6  # |Spearman| above which two bands/indices count as redundant (exploration only)
@@ -46,7 +50,6 @@ SITES = {
     "sdh2": {
         "piezo_path": RAW_DIR / "groundwater" / "SDH2_daily-insitu-data.csv",
         "piezo_column": "SDH2PP01_gw-depth_m",
-        # No SDH2 VIIRS file in data/raw/reflectance yet.
         "nbar_path": RAW_DIR / "reflectance" / "SDH2_VIIRS_2012_01_2026_10.csv",
         "chirps_path": RAW_DIR / "precipitation" / "SDH2_CHIRPS_2012_01_01_2026_09_30.csv",
     },
@@ -57,7 +60,8 @@ for _site in SITES.values():
     _site.update({
         "piezo_unit": "m",                  # unit of the raw piezometer column
         "piezo_zero_cm": 0.0,               # offset subtracted after converting to cm
-        "physical_range_cm": (-100, 30),    # plausible level range
+        "piezo_sign": -1,                   # multiplies the raw value so that depth is positive below the surface
+        "physical_range_cm": (-30, 100),    # plausible depth range (positive = below surface)
         "max_jump_cm": 5.0,                 # day-to-day change flagged as a jump
         "nbar_qa": {"good_flags": (0, 1)},  # other BRDF quality flags mark a day qa_low (data is kept)
         "max_reflectance_z": 3.0,           # NBAR values with |z-score| above this are masked
@@ -70,7 +74,7 @@ for _site in SITES.values():
 # 2026-10-29: SPECTRAL chosen by the user from the clusters of 02 (REDUNDANCY_THRESHOLD 0.6). LEADS empty
 # (the CCF of the leads reflects autocorrelation).
 # 2026-11-01: no variable selection before training (permutation, stability and ablation removed); FINAL_COLUMNS
-# chosen by the user. WINDOWS [14] (windows 12-14 are equivalent in 02). MODEL and MODEL_PARAMS are filled from 06.
+# chosen by the user. WINDOWS [14] (windows 12-14 are equivalent in 02). MODEL and MODEL_PARAMS are filled from 06 (now 05).
 # 2026-11-01: SPECTRAL = the 8 indices + bands I1, I2, I3 (user's choice); FINAL_COLUMNS = SPECTRAL + rain + calendar.
 # 2026-11-02: indices that need M bands removed (gndvi, ndwi, mndwi, nbr, str2); added ndsaii, dvi, mlswi26, savi, evi2,
 # bai, s3. SPECTRAL = all the indices that remain + I1, I2, I3, pending the redundancy review of 02 (M bands excluded there).
@@ -84,11 +88,15 @@ DECISIONS = {
     "sdh1": {"LEADS": [], "WINDOWS": [],
              "SPECTRAL": ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn",
                           "snirvswir", "I1", "I2", "I3"],
-             "FINAL_COLUMNS": ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn",
-                               "snirvswir", "I1", "I2", "I3", "sin_doy", "cos_doy"], "MODEL": None, "MODEL_PARAMS": None},
+             "FINAL_COLUMNS": ["savi", "I1", "I2", "sin_doy", "cos_doy"], 
+             "MODEL": None, 
+             "MODEL_PARAMS": None
+             },
     "sdh2": {"LEADS": [], "WINDOWS": [14],
              "SPECTRAL": None,
-             "FINAL_COLUMNS": ["str2", "ndmi", "ndvi", "nbr", "pr_14d", "sin_doy", "cos_doy"], "MODEL": None, "MODEL_PARAMS": None},
+             "FINAL_COLUMNS": ["str2", "ndmi", "ndvi", "nbr", "pr_14d", "sin_doy", "cos_doy"], 
+             "MODEL": None, 
+             "MODEL_PARAMS": None},
 }
 
 

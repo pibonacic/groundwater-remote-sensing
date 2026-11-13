@@ -26,9 +26,9 @@ def to_daily(df):
     return df.sort_index().asfreq("D")
 
 
-def normalize_piezometer(s, unit, zero_cm):
-    """Convert to cm and subtract zero_cm. The sign of the raw data is kept."""
-    return (s * UNIT_TO_CM[unit] - zero_cm).rename("gw_cm")
+def normalize_piezometer(s, unit, zero_cm, sign=1):
+    """Convert to cm, subtract zero_cm and multiply by sign (sign=-1 turns negative depths into positive ones)."""
+    return (sign * (s * UNIT_TO_CM[unit] - zero_cm)).rename("gw_cm")
 
 
 def apply_nbar_qa(df, rules):

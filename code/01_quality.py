@@ -11,9 +11,10 @@ site = cfg.SITES[SITE]
 out_dir = cfg.OUTPUTS_DIR / SITE / "01_quality"
 out_dir.mkdir(parents=True, exist_ok=True)
 
-# 1. Read the raw files. The piezometer is converted to cm (negative = below surface).
+# 1. Read the raw files. The piezometer is converted to a depth in cm (positive = below surface).
 piezo = normalize_piezometer(
-    load_piezometer(site["piezo_path"], site["piezo_column"]), site["piezo_unit"], site["piezo_zero_cm"])
+    load_piezometer(site["piezo_path"], site["piezo_column"]), site["piezo_unit"], site["piezo_zero_cm"],
+    site["piezo_sign"])
 
 # 2. VIIRS NBAR: values are kept as they are; qa_low only marks days with a flag other than the good ones.
 nbar = apply_nbar_qa(load_nbar(site["nbar_path"]), site["nbar_qa"])

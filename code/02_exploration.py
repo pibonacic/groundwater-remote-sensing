@@ -1,10 +1,13 @@
-"""Steps 2-3: signs, regimes, leads and rain windows on the development period."""
+"""Steps 2-3: signs, regimes, leads, rain windows and memory of the target on the development period."""
+import pandas as pd
+
 import config as cfg
 from functions.data import load_table, save_table, compute_indices
 from functions.exploration import (
-    seasonal_anomaly, spearman_signs, regime_check, lead_table, rain_window_response, redundancy_clusters)
+    seasonal_anomaly, spearman_signs, regime_check, lead_table, rain_window_response, redundancy_clusters, acf_pacf)
 from functions.features import compute_partition
-from functions.plots import scatter_by_season, zscore_series_plot, ccf_plot, dendrogram_plot, rain_window_plot
+from functions.plots import (
+    scatter_by_season, zscore_series_plot, ccf_plot, dendrogram_plot, rain_window_plot, acf_pacf_plot)
 
 SITE = "sdh1"
 
@@ -43,9 +46,15 @@ rain = rain_window_response(
 #    Computed on the days of the development period that have a water level.
 tree, clusters = redundancy_clusters(X.loc[y.dropna().index], cfg.REDUNDANCY_THRESHOLD)
 
-# 7. Save every table that supports a decision, plus the figures.
+# 7. Memory of the target: ACF and PACF of the depth, raw and as seasonal anomaly, to choose the gap h of the
+#    hv_blocks folds (HV_H): the lag where the autocorrelation becomes negligible.
+memory = {"raw": acf_pacf(y, cfg.ACF_MAX_LAG), "anomaly": acf_pacf(seasonal_anomaly(y, cfg.ANOMALY_HALF_WINDOW), cfg.ACF_MAX_LAG)}
+acf_table = pd.concat(memory, axis=1)
+acf_table.columns = [f"{a}_{b}" for a, b in acf_table.columns]
+
+# 8. Save every table that supports a decision, plus the figures.
 for name, table in {"signs": signs, "regimes": regimes, "leads": leads,
-                    "ccf_raw": ccf_raw, "ccf_anomaly": ccf_anom, "rain_windows": rain, "clusters": clusters}.items():
+                    "ccf_raw": ccf_raw, "ccf_anomaly": ccf_anom, "rain_windows": rain, "clusters": clusters, "acf_pacf": acf_table}.items():
     save_table(table, out_dir / f"{name}.csv")
 scatter_by_season(indices.loc[y.dropna().index], y.dropna(), f"{SITE}: indices vs water level").savefig(
     out_dir / "scatter_by_season.png", dpi=150)
@@ -62,11 +71,18 @@ dendrogram_plot(tree, list(X.columns), list(clusters.index[clusters["proposed"]]
 rain_window_plot(rain, f"{SITE}: rain window vs {cfg.RAIN_MOISTURE_INDEX} anomaly").savefig(
     out_dir / "rain_windows.png", dpi=150)
 
-# 8. Summary. Then edit DECISIONS in config.py (regime, SPECTRAL, LEADS, WINDOWS) with date and reason.
+acf_pacf_plot(memory, cfg.HV_H, f"{SITE}: ACF and PACF of the depth (development period)").savefig(
+    out_dir / "acf_pacf.png", dpi=150)
+
+# 9. Summary. Then edit DECISIONS in config.py (regime, SPECTRAL, LEADS, WINDOWS) with date and reason.
 print(f"{SITE}: development period {y.dropna().index.min().date()} to {y.dropna().index.max().date()}, "
       f"{y.notna().sum()} water level days")
 print("signs (indices):\n", signs.loc[list(indices.columns)].round(3))
-print("regime days below/above threshold:", int(regimes["n_below"].iloc[0]), "/", int(regimes["n_above"].iloc[0]))
+print("regime days below/above surface:", int(regimes["n_below_surface"].iloc[0]), "/", int(regimes["n_above_surface"].iloc[0]))
+for kind, table in memory.items():
+    below = table.index[(table["acf"].abs() < table["conf"]) & (table.index > 0)]
+    print(f"ACF {kind}: first lag inside the 95% band = {below.min() if len(below) else '>' + str(cfg.ACF_MAX_LAG)}; "
+          f"ACF at h={cfg.HV_H}: {table['acf'].loc[cfg.HV_H]:.3f}")
 print("leads:\n", leads.round(3).to_string(index=False))
 print("proposed LEADS:", proposed_leads)
 print("rain windows:\n", rain.round(3))
