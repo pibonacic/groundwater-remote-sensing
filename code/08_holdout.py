@@ -6,31 +6,29 @@ import pandas as pd
 import config as cfg
 from functions.data import save_table
 from functions.features import load_development, season_of
-from functions.models import MODEL_SPECS, SeasonalClimatology, build_pipeline, enet_params
+from functions.models import MODEL_SPECS, SeasonalClimatology, build_pipeline
 from functions.plots import bootstrap_ci_plot, oof_predictions_plot, season_metrics_plot
 from functions.validation import block_bootstrap, metrics_table
 
-SITE = "sdh2"
+SITE = "sdh1"
 BASELINE = "climatology"
 
-decisions = cfg.DECISIONS[SITE]
-out_dir = cfg.OUTPUTS_DIR / SITE / "08_holdout"
-out_dir.mkdir(parents=True, exist_ok=True)
+decisions = cfg.decisions(SITE)
+out_dir = cfg.out_dir(SITE, "08_holdout")
 
 # 1. Load the development period (training) and the holdout (evaluation), and the clip limits.
-X_dev, y_dev = load_development(cfg.PROCESSED_DIR / f"dev_{SITE}.csv")
-X_hold, y_hold = load_development(cfg.PROCESSED_DIR / f"holdout_{SITE}.csv")
+X_dev, y_dev = load_development(cfg.processed_path("development", SITE))
+X_hold, y_hold = load_development(cfg.processed_path("holdout", SITE))
 limits = cfg.SITES[SITE]["physical_range_cm"]
 
 # 2. Hyperparameters chosen in 05 (the "chosen" row of each model in tuning.csv); nothing is tuned here.
-tuning = pd.read_csv(cfg.OUTPUTS_DIR / SITE / "05_models" / "tuning.csv")
+tuning = pd.read_csv(cfg.out_dir(SITE, "05_models") / "tuning.csv")
 params = {name: ast.literal_eval(tuning[(tuning["model"] == name) & tuning["chosen"]]["params"].iloc[0])
           for name in MODEL_SPECS}
 
 # 3. Fit every tuned model and the climatology on the whole development period and predict the holdout.
-enet = enet_params(0, cfg.INNER_SPLITS, cfg.ENET_L1_RATIOS, cfg.ENET_MAX_ITER)
 models = {BASELINE: SeasonalClimatology()}
-models |= {name: build_pipeline(name, enet, cfg, decisions["FINAL_COLUMNS"], limits=limits, seed=cfg.SEED, params=params[name])
+models |= {name: build_pipeline(name, cfg, decisions["FINAL_COLUMNS"], limits=limits, seed=cfg.SEED, params=params[name])
            for name in MODEL_SPECS}
 preds = pd.DataFrame({name: model.fit(X_dev, y_dev).predict(X_hold) for name, model in models.items()}, index=y_hold.index)
 

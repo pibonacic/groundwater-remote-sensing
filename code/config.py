@@ -8,7 +8,12 @@ PROCESSED_DIR = ROOT / "data" / "processed"
 OUTPUTS_DIR = ROOT / "outputs"
 
 # ---------------------------------------------------------------- GENERAL
-DEV_YEARS = 2               # development = first DEV_YEARS years from the first piezometer day; everything after goes to the holdout
+# Development / holdout cut. Each scheme has exactly one key: "dev_years" (development = the first dev_years years
+# from the first valid day, the rest is holdout) or "holdout_days" (holdout = the last holdout_days valid days, the rest
+# is development). Valid days: water level + the NBAR bands of BANDS (+ rain only when the site has rain WINDOWS).
+# Outputs and processed tables of each scheme go to their own paths (out_dir, processed_path).
+PARTITION = "hold_1y"      # "dev_2y" or "hold_1y"
+PARTITIONS = {"dev_2y": {"dev_years": 2}, "hold_1y": {"holdout_days": 365}}
 MIN_PAIRS = 30              # minimum overlapping days to compute a correlation
 CCF_KS = range(-30, 31)     # k > 0: spectral value k days AFTER the water level
 ANOMALY_HALF_WINDOW = 15      # anomalies (and the window climatology of 04) use the mean of the days within this many days either side of the day of the year
@@ -22,10 +27,15 @@ REGIME_THRESHOLD_CM = 0     # depth above this = "below surface" regime (depth i
 # (hv_v and hv_h are set per site in SITES).
 GAP = 0                     # days dropped between development and holdout
 ACF_MAX_LAG = 120           # lags (days) of the ACF / PACF of the target in 02 (to explore hv_h)
-INNER_SPLITS = 3            # temporal folds inside the ElasticNetCV of the hybrid model (no gap)
-ENET_L1_RATIOS = [0.01, 0.1, 0.5, 0.9, 1.0]   # 0.01 is almost a Ridge regression
-ENET_ALPHAS = [0.01, 0.03, 0.1, 0.3, 1, 3]   # alpha grid of the elastic_net candidate
 ENET_MAX_ITER = 200000
+
+# Hyperparameter grids of 05 (tuned on the hv_blocks folds by the mean RMSE across folds). The hybrids use ENET_GRID
+# (their ElasticNet) and RF_GRID (their trees): hybrid_joint tunes both together by the RMSE of the hybrid,
+# hybrid_staged first the ElasticNet alone and then the trees on top of it (see MODEL_SPECS in functions/models.py).
+ENET_GRID = {"alpha": [0.01, 0.1, 1, 10, 100],   # elastic_net and the ElasticNet of the hybrid
+             "l1_ratio": [0.01, 0.5, 1.0]}       # 0.01 is almost a Ridge regression
+RF_GRID = {"max_depth": [4, 8, None], "min_samples_leaf": [5, 10, 20, 40], "max_features": [0.5, 1.0]}   # random_forest and the trees of the hybrid
+CATBOOST_GRID = {"learning_rate": [0.02, 0.05], "depth": [2, 3, 4], "l2_leaf_reg": [3, 10, 30]}
 SEED = 0                    # random state of every stochastic step
 
 N_BOOTSTRAP = 1000          # block-bootstrap resamples of the out-of-fold predictions
@@ -33,7 +43,7 @@ BOOTSTRAP_BLOCK_DAYS = 30           # block length of the bootstrap on the out-o
 BOOTSTRAP_BLOCK_DAYS_HOLDOUT = 15   # block length of the bootstrap on the holdout predictions (08)
 BOOTSTRAP_LEVEL = 0.95      # confidence level of the intervals
 
-REDUNDANCY_THRESHOLD = 0.6  # |Spearman| above which two bands/indices count as redundant (exploration only)
+REDUNDANCY_THRESHOLD = 0.9  # |Spearman| above which two bands/indices count as redundant (exploration only)
 
 # VIIRS NBAR band behind each generic name used by the spectral indices (only the I bands).
 BANDS = {"red": "I1", "nir": "I2", "swir1": "I3"}
@@ -46,7 +56,7 @@ SITES = {
         "nbar_path": RAW_DIR / "reflectance" / "SDH1_VIIRS_2012_01_2026_11.csv",
         "chirps_path": RAW_DIR / "precipitation" / "SDH1_CHIRPS_2012_01_01_2026_09_30.csv",
         "piezo_start": None,                # first piezometer day kept ("YYYY-MM-DD"); None = all records
-        "hv_v": 60,                         # days per hv_blocks validation block
+        "hv_v": 66,                         # days per hv_blocks validation block
         "hv_h": 50,                         # days dropped on each side of the validation block
     },
     "sdh2": {
@@ -55,7 +65,7 @@ SITES = {
         "nbar_path": RAW_DIR / "reflectance" / "SDH2_VIIRS_2012_01_2026_11.csv",
         "chirps_path": RAW_DIR / "precipitation" / "SDH2_CHIRPS_2012_01_01_2026_09_30.csv",
         "piezo_start": "2024-05-24",        # 2026-11-13: earlier records are wrong (user's review of 01)
-        "hv_v": 60,
+        "hv_v": 66,
         "hv_h": 82,                         # 2026-11-13: from the ACF / PACF of 02 (user's choice)
     },
 }
@@ -73,53 +83,108 @@ for _site in SITES.values():
     })
 
 # ---------------------------------------------------------------- DECISIONS
-# Filled after reading the outputs of 02_exploration.py (record date and reason).
-# 2026-10-27: rain windows chosen after step 2 (rain reference index: str1).
-# SPECTRAL: bands and indices that become features (your choice from the clusters of 02; leads are made only for them).
-# 2026-10-29: SPECTRAL chosen by the user from the clusters of 02 (REDUNDANCY_THRESHOLD 0.6). LEADS empty
-# (the CCF of the leads reflects autocorrelation).
-# 2026-11-01: no variable selection before training (permutation, stability and ablation removed); FINAL_COLUMNS
-# chosen by the user. WINDOWS [14] (windows 12-14 are equivalent in 02). MODEL and MODEL_PARAMS are filled from 06 (now 05).
-# 2026-11-01: SPECTRAL = the 8 indices + bands I1, I2, I3 (user's choice); FINAL_COLUMNS = SPECTRAL + rain + calendar.
-# 2026-11-02: indices that need M bands removed (gndvi, ndwi, mndwi, nbr, str2); added ndsaii, dvi, mlswi26, savi, evi2,
-# bai, s3. SPECTRAL = all the indices that remain + I1, I2, I3, pending the redundancy review of 02 (M bands excluded there).
-# 2026-11-02: evi2, s3 and I3 dropped from SPECTRAL / FINAL_COLUMNS (user's choice; 06 compared before and after).
-# 2026-11-02: SPECTRAL reduced to ndvi, dvi, mlswi26, str1, ndsaii, ndmi (no raw bands; user's choice, 06 compared).
-# 2026-11-03: SPECTRAL = all 17 indices (vibi dropped; baim and snirvswir use I3) + I1, I2, I3; FINAL_COLUMNS adds rain + calendar.
-# 2026-11-03: evi2, baim, csiswir, bai and s3 dropped from SPECTRAL / FINAL_COLUMNS (user's choice; 06 compared).
-# 2026-11-03: sdh1 WINDOWS emptied: no accumulated rain in the feature table (user's choice; 04 and 06 compared).
-# 2026-11-03: rain window 14 restored in sdh1 (WINDOWS [14], pr_14d in FINAL_COLUMNS).
+# 2026-11-13: the development / holdout cut is chosen with PARTITION ("dev_2y", the scheme up to commit 292178c, or
+# "hold_1y", last 365 valid days as holdout) to compare both without switching branches. FINAL_COLUMNS, MODEL and
+# MODEL_PARAMS can differ per scheme through BY_PARTITION (overrides of the site base); for now both schemes use the
+# same FINAL_COLUMNS. Scripts read the combined decisions with decisions(site).
+# 2026-11-14: scheme holdout_1y renamed hold_1y (scheme names stay short); processed tables are named
+# development_<site>_<scheme>.csv and holdout_<site>_<scheme>.csv. The ElasticNet of the hybrid is no longer an
+# ElasticNetCV with inner folds: its alpha and l1_ratio are tuned on hv_blocks with the trees (grid of 05), like the
+# elastic_net candidate.
+# 2026-11-16: all hyperparameter grids in config.py (ENET_GRID, RF_GRID, CATBOOST_GRID); ENET grid reduced to
+# alpha [0.01, 0.1, 1, 10, 100] x l1_ratio [0.01, 0.5, 1.0] (hybrid: 360 combinations instead of 1080).
+# FINAL_COLUMNS per scheme (BY_PARTITION) = a step of the backward elimination of 06 with hybrid on the 17 columns
+# (user's choice; 05 on the 17 columns kept in 05_models_all_vars): sdh1 dev_2y step 14 (3 columns), sdh1 hold_1y
+# step 10 (7), sdh2 dev_2y step 11 (6), sdh2 hold_1y step 13 (4). The base FINAL_COLUMNS stay the 17 columns.
+# 2026-11-16: sdh1 dev_2y changed to step 10 (7 columns; user's choice after 08 with step 14).
+# 2026-11-16: two versions of the hybrid kept to compare them: hybrid_joint (the previous hybrid, ElasticNet and
+# trees tuned together) and hybrid_staged (ElasticNet first, then the trees with it fixed). 06 runs the backward
+# elimination for both. Simplified the same day: hybrid_staged reuses the alpha / l1_ratio chosen for elastic_net
+# in 05 and only tunes its trees, because its own ElasticNet stage was the same model as elastic_net and chose the
+# same alpha / l1_ratio with the same rmse_mean in the 4 runs.
+# 2026-11-16: FINAL_COLUMNS per scheme = the set with n columns on the backward elimination path of 06 with
+# hybrid_staged on the 17 columns, v=66 (user's choice; always the path of hybrid_staged): sdh1 dev_2y 3 columns
+# (step 14), sdh1 hold_1y 4 (step 13), sdh2 dev_2y 6 (step 11), sdh2 hold_1y 4 (step 13). 05 on the 17 columns kept
+# in 05_models_all_vars. The previous choices are left commented out.
 DECISIONS = {
     "sdh1": {"LEADS": [], "WINDOWS": [],
-             "SPECTRAL": ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn",
-                          "snirvswir", "I1", "I2", "I3"],
-             "FINAL_COLUMNS": ["savi", "I1", "I2", "sin_doy", "cos_doy"], 
+             "SPECTRAL":      ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn", "snirvswir", "I1", "I2", "I3"],
+             "FINAL_COLUMNS": ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn", "snirvswir", "I1", "I2", "I3", "sin_doy", "cos_doy"], 
              "MODEL": None, 
-             "MODEL_PARAMS": None
+             "MODEL_PARAMS": None,
+             "BY_PARTITION": {   # scheme -> overrides of FINAL_COLUMNS / MODEL / MODEL_PARAMS
+                 #"dev_2y": {"FINAL_COLUMNS": ["dvi", "mi", "ndsinw", "bai_burn", "I1", "sin_doy", "cos_doy"]},
+                 #"hold_1y": {"FINAL_COLUMNS": ["str1", "dvi", "mlswi26", "I2", "I3", "sin_doy", "cos_doy"]},
+                 "dev_2y": {"FINAL_COLUMNS": ["I3", "sin_doy", "cos_doy"]},
+                 "hold_1y": {"FINAL_COLUMNS": ["mlswi26", "I2", "sin_doy", "cos_doy"]},
+             },
              },
     "sdh2": {"LEADS": [], "WINDOWS": [],
-             "SPECTRAL": ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn",
-                          "snirvswir", "I1", "I2", "I3"],
-             "FINAL_COLUMNS": ['ndmi', 'savi', 'nli', 'I1', 'I3', 'sin_doy', 'cos_doy'], 
+             "SPECTRAL":      ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn", "snirvswir", "I1", "I2", "I3"],
+             "FINAL_COLUMNS": ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn", "snirvswir", "I1", "I2", "I3", "sin_doy", "cos_doy"], 
              "MODEL": None, 
-             "MODEL_PARAMS": None},
+             "MODEL_PARAMS": None,
+             "BY_PARTITION": {   # scheme -> overrides of FINAL_COLUMNS / MODEL / MODEL_PARAMS
+                 #"dev_2y": {"FINAL_COLUMNS": ["mlswi26", "nli", "I2", "I3", "sin_doy", "cos_doy"]},
+                 #"hold_1y": {"FINAL_COLUMNS": ["savi", "bai_burn", "I3", "sin_doy"]},
+                 "dev_2y": {"FINAL_COLUMNS": ["mlswi26", "nli", "I2", "I3", "sin_doy", "cos_doy"]},
+                 "hold_1y": {"FINAL_COLUMNS": ["mlswi26", "mi", "bai_burn", "sin_doy"]},
+             },
+             },
 }
+# All vars: "ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn", "snirvswir", "I1", "I2", "I3", "sin_doy", "cos_doy"
+
+PARTITION_OVERRIDES = ("FINAL_COLUMNS", "MODEL", "MODEL_PARAMS")
+
+
+def decisions(site):
+    """Decisions of a site for the current PARTITION: the site base with the overrides of BY_PARTITION[PARTITION]."""
+    base = {k: v for k, v in DECISIONS[site].items() if k != "BY_PARTITION"}
+    return base | DECISIONS[site].get("BY_PARTITION", {}).get(PARTITION, {})
+
+
+def out_dir(site, step):
+    """Output folder of a step for the current PARTITION (created if missing)."""
+    path = OUTPUTS_DIR / site / PARTITION / step
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def processed_path(kind, site):
+    """Development ("development") or holdout ("holdout") table of a site for the current PARTITION."""
+    assert kind in ("development", "holdout"), f"kind must be development or holdout, got {kind}"
+    return PROCESSED_DIR / f"{kind}_{site}_{PARTITION}.csv"
 
 
 def check_config():
-    assert isinstance(DEV_YEARS, int) and DEV_YEARS > 0, "DEV_YEARS must be a positive int"
-    for site, decisions in DECISIONS.items():
+    assert PARTITION in PARTITIONS, f"PARTITION must be one of {list(PARTITIONS)}, got {PARTITION}"
+    for name, scheme in PARTITIONS.items():
+        keys = set(scheme) & {"dev_years", "holdout_days"}
+        assert len(keys) == 1 and len(scheme) == 1, f"PARTITIONS[{name}] needs exactly one of dev_years / holdout_days"
+        value = scheme[keys.pop()]
+        assert isinstance(value, int) and value > 0, f"PARTITIONS[{name}] must be a positive int, got {value}"
+    for site in DECISIONS:
         assert site in SITES, f"DECISIONS has unknown site {site}"
-        for name in ("LEADS", "WINDOWS"):
-            values = decisions[name]
-            if values is None:
-                continue
-            ok = all(isinstance(v, int) and v > 0 for v in values)
-            assert ok, f"{site}.{name} must be positive integers, got {values}"
-            assert len(set(values)) == len(values), f"{site}.{name} has repeated values"
-        for name in ("SPECTRAL", "FINAL_COLUMNS"):
-            values = decisions[name]
-            assert values is None or len(set(values)) == len(values), f"{site}.{name} has repeated values"
+        for scheme, overrides in DECISIONS[site].get("BY_PARTITION", {}).items():
+            assert scheme in PARTITIONS, f"{site}.BY_PARTITION has unknown scheme {scheme}"
+            extra = set(overrides) - set(PARTITION_OVERRIDES)
+            assert not extra, f"{site}.BY_PARTITION[{scheme}] can only override {PARTITION_OVERRIDES}, got {extra}"
+        for scheme in PARTITIONS:
+            _check_decisions(site, {k: v for k, v in DECISIONS[site].items() if k != "BY_PARTITION"}
+                             | DECISIONS[site].get("BY_PARTITION", {}).get(scheme, {}))
+
+
+def _check_decisions(site, site_decisions):
+    for name in ("LEADS", "WINDOWS"):
+        values = site_decisions[name]
+        if values is None:
+            continue
+        ok = all(isinstance(v, int) and v > 0 for v in values)
+        assert ok, f"{site}.{name} must be positive integers, got {values}"
+        assert len(set(values)) == len(values), f"{site}.{name} has repeated values"
+    for name in ("SPECTRAL", "FINAL_COLUMNS"):
+        values = site_decisions[name]
+        assert values is None or len(set(values)) == len(values), f"{site}.{name} has repeated values"
 
 
 check_config()

@@ -49,18 +49,37 @@ def season_of(index):
     return pd.Series(pd.Categorical(index.month.map(SEASON_BY_MONTH), categories=["DJF", "MAM", "JJA", "SON"]), index=index)
 
 
-def compute_partition(piezo_index, dev_years, separation_days):
-    """Cut dates for development and holdout.
+def modelling_days(daily, bands, use_rain):
+    """Days of the clean daily table (step 1) with a water level and the NBAR bands the features are built from,
+    plus rain when use_rain (rain windows in the features): the days that get a complete feature row in step 3.
+    Steps 2 and 3 cut development / holdout on them."""
+    columns = [TARGET, *bands] + (["precip_mm"] if use_rain else [])
+    return daily.index[daily[columns].notna().all(axis=1)]
 
-    The development is the first dev_years years of the piezometer record, then
-    separation_days days are dropped and the rest of the record is the holdout.
+
+def compute_partition(days, scheme, separation_days):
+    """Cut dates for development and holdout on days (dates with a complete row, from modelling_days).
+
+    scheme (an entry of config.PARTITIONS) has one key:
+    - dev_years: the development is the first dev_years years from the first day, then separation_days days are
+      dropped and the rest is the holdout;
+    - holdout_days: the holdout is the last holdout_days days, the separation_days before it are dropped and
+      everything earlier is the development.
     """
-    first, last = piezo_index.min(), piezo_index.max()
-    dev_end = first + pd.DateOffset(years=dev_years) - pd.Timedelta(days=1)
-    holdout_start = dev_end + pd.Timedelta(days=separation_days + 1)
-    if holdout_start > last:
-        raise ValueError(f"no holdout left: development ends {dev_end.date()} (+{separation_days} days "
-                         f"of separation) but the record ends {last.date()}")
+    days = pd.DatetimeIndex(days).sort_values()
+    if "dev_years" in scheme:
+        dev_end = days.min() + pd.DateOffset(years=scheme["dev_years"]) - pd.Timedelta(days=1)
+        holdout_start = dev_end + pd.Timedelta(days=separation_days + 1)
+        if holdout_start > days.max():
+            raise ValueError(f"no holdout left: development ends {dev_end.date()} (+{separation_days} days "
+                             f"of separation) but the record ends {days.max().date()}")
+    else:
+        holdout_days = scheme["holdout_days"]
+        if len(days) <= holdout_days + separation_days:
+            raise ValueError(f"no holdout left: {len(days)} days, not enough for a holdout of {holdout_days} "
+                             f"(+{separation_days} of separation) and a development period")
+        holdout_start = days[-holdout_days]
+        dev_end = holdout_start - pd.Timedelta(days=separation_days + 1)
     return Partition(dev_end=dev_end, holdout_start=holdout_start)
 
 

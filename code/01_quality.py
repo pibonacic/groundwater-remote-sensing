@@ -5,7 +5,7 @@ from functions.data import (
     align_sources, mask_reflectance_outliers, quality_report, interpolate_nbar, save_table)
 from functions.plots import quality_overview_plot
 
-SITE = "sdh2"
+SITE = "sdh1"
 
 site = cfg.SITES[SITE]
 out_dir = cfg.OUTPUTS_DIR / SITE / "01_quality"

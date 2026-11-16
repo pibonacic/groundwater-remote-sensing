@@ -4,33 +4,40 @@ import pandas as pd
 import config as cfg
 from functions.data import save_table
 from functions.features import load_development, season_of
-from functions.models import MODEL_SPECS, SeasonalClimatology, build_pipeline, enet_params, pipeline_grid, tune
+from functions.models import CLIP_PREFIX, MODEL_SPECS, SeasonalClimatology, build_pipeline, pipeline_grid, tune
 from functions.plots import bootstrap_ci_plot, by_fold_boxplot, oof_predictions_plot, season_metrics_plot, taylor_plot
 from functions.validation import block_bootstrap, compare, hv_block_splits, metrics_table, summarize_folds
 
-SITE = "sdh2"
+SITE = "sdh1"
 hv_v, hv_h = cfg.SITES[SITE]["hv_v"], cfg.SITES[SITE]["hv_h"]   # hv_blocks folds of this site
 BASELINE = "climatology"
 
-decisions = cfg.DECISIONS[SITE]
+decisions = cfg.decisions(SITE)
 if decisions["FINAL_COLUMNS"] is None:
     raise SystemExit(f"Set FINAL_COLUMNS for {SITE} in config.py DECISIONS first (your choice of features).")
-out_dir = cfg.OUTPUTS_DIR / SITE / "05_models"
-out_dir.mkdir(parents=True, exist_ok=True)
+out_dir = cfg.out_dir(SITE, "05_models")
 
 # 1. Load the development period only, the hv_blocks folds and the clip limits (the physical range of the depth).
-#    The inner ElasticNetCV of the hybrid has no gap.
-X, y = load_development(cfg.PROCESSED_DIR / f"dev_{SITE}.csv")
-enet = enet_params(0, cfg.INNER_SPLITS, cfg.ENET_L1_RATIOS, cfg.ENET_MAX_ITER)
+X, y = load_development(cfg.processed_path("development", SITE))
 splits = hv_block_splits(X.index, hv_v, hv_h)
 limits = cfg.SITES[SITE]["physical_range_cm"]
 
 # 2. Tune every candidate on the hv_blocks folds: the configuration with the lowest mean RMSE across folds.
+#    hybrid_staged takes the ElasticNet chosen for elastic_net and only tunes its trees (see MODEL_SPECS).
 models = {BASELINE: SeasonalClimatology()}
 tuning, best_params = [], {}
 for name in MODEL_SPECS:
-    pipe = build_pipeline(name, enet, cfg, decisions["FINAL_COLUMNS"], limits=limits, seed=cfg.SEED)
+    pipe = build_pipeline(name, cfg, decisions["FINAL_COLUMNS"], limits=limits, seed=cfg.SEED)
+    fixed = {}
+    if name == "hybrid_staged":
+        if "elastic_net" not in best_params:
+            raise SystemExit("hybrid_staged reuses the ElasticNet of elastic_net: elastic_net must be tuned before it "
+                             "(put it first in MODEL_SPECS).")
+        fixed = {CLIP_PREFIX + f"lin__enet__{k}": best_params["elastic_net"][CLIP_PREFIX + k] for k in ("alpha", "l1_ratio")}
+        pipe.set_params(**fixed)
     best_params[name], summary = tune(pipe, pipeline_grid(name, cfg), X, y, splits)
+    best_params[name] = fixed | best_params[name]
+    summary["params"] = [fixed | p for p in summary["params"]]
     models[name] = pipe.set_params(**best_params[name])
     tuning.append(summary.assign(model=name))
 

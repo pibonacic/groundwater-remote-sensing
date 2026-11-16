@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import ElasticNet, ElasticNetCV
-from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+from sklearn.linear_model import ElasticNet
+from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 from catboost import CatBoostRegressor
@@ -27,11 +27,6 @@ class SeasonalClimatology(RegressorMixin, BaseEstimator):
 
     def predict(self, X):
         return X.index.month.map(self.monthly_).fillna(self.mean_).to_numpy()
-
-
-def enet_params(gap, inner_splits, l1_ratios, max_iter):
-    """Arguments of the ElasticNetCV inside the hybrid model; its inner CV is temporal and keeps the same gap."""
-    return {"l1_ratio": l1_ratios, "max_iter": max_iter, "cv": TimeSeriesSplit(n_splits=inner_splits, gap=gap)}
 
 
 class PhysicalClipRegressor(RegressorMixin, BaseEstimator):
@@ -72,35 +67,43 @@ def select_columns(X, columns):
     return X[columns]
 
 
-# Candidates: make(enet, cfg) builds the bare estimator (enet = enet_params of the hybrid, cfg = the config module),
-# scale says whether it needs standardized inputs, grid(cfg) is relative to that estimator.
+def make_hybrid(cfg):
+    """ElasticNet on standardized inputs for the level + random forest on what it leaves."""
+    return LinearPlusTrees(Pipeline([("scale", StandardScaler()), ("enet", ElasticNet(max_iter=cfg.ENET_MAX_ITER))]),
+                           RandomForestRegressor(n_estimators=300))
+
+
+# Candidates: make(cfg) builds the bare estimator (cfg = the config module), scale says whether it needs standardized
+# inputs. grid(cfg) is relative to that estimator and reads the grids of config.py (ENET_GRID, RF_GRID, CATBOOST_GRID).
+# Two versions of the hybrid:
+# - hybrid_joint: ElasticNet (ENET_GRID) and trees (RF_GRID) tuned together, by the RMSE of the hybrid;
+# - hybrid_staged: 05 fixes its ElasticNet to the alpha / l1_ratio chosen for elastic_net (same columns, scaling,
+#   clip and grid, so the same linear model) and only its trees (RF_GRID) are tuned, by the RMSE of the hybrid. It
+#   depends on elastic_net coming before it in MODEL_SPECS.
 MODEL_SPECS = {
-    "elastic_net": {"make": lambda enet, cfg: ElasticNet(max_iter=cfg.ENET_MAX_ITER), "scale": True,
-                    "grid": lambda cfg: {"alpha": cfg.ENET_ALPHAS, "l1_ratio": cfg.ENET_L1_RATIOS}},
-    "random_forest": {"make": lambda enet, cfg: RandomForestRegressor(n_estimators=300), "scale": False,
-                      "grid": lambda cfg: {"max_depth": [4, 8, None], "min_samples_leaf": [5, 10, 20, 40],
-                                           "max_features": [0.5, 1.0]}},
-    "catboost": {"make": lambda enet, cfg: CatBoostRegressor(iterations=500, verbose=0, allow_writing_files=False,
+    "elastic_net": {"make": lambda cfg: ElasticNet(max_iter=cfg.ENET_MAX_ITER), "scale": True,
+                    "grid": lambda cfg: cfg.ENET_GRID},
+    "random_forest": {"make": lambda cfg: RandomForestRegressor(n_estimators=300), "scale": False,
+                      "grid": lambda cfg: cfg.RF_GRID},
+    "catboost": {"make": lambda cfg: CatBoostRegressor(iterations=500, verbose=0, allow_writing_files=False,
                                                              thread_count=1),
-                 "scale": False, "grid": lambda cfg: {"learning_rate": [0.02, 0.05], "depth": [2, 3, 4],
-                                                      "l2_leaf_reg": [3, 10, 30]}},
-    "hybrid": {"make": lambda enet, cfg: LinearPlusTrees(
-                   Pipeline([("scale", StandardScaler()), ("enet", ElasticNetCV(**enet))]),
-                   RandomForestRegressor(n_estimators=300)),
-               "scale": False, "grid": lambda cfg: {"trees__max_depth": [4, 8, None],
-                                                    "trees__min_samples_leaf": [5, 10, 20, 40],
-                                                    "trees__max_features": [0.5, 1.0]}},
+                 "scale": False, "grid": lambda cfg: cfg.CATBOOST_GRID},
+    "hybrid_joint": {"make": make_hybrid, "scale": False,
+                     "grid": lambda cfg: {**{f"lin__enet__{k}": v for k, v in cfg.ENET_GRID.items()},
+                                          **{f"trees__{k}": v for k, v in cfg.RF_GRID.items()}}},
+    "hybrid_staged": {"make": make_hybrid, "scale": False,
+                      "grid": lambda cfg: {f"trees__{k}": v for k, v in cfg.RF_GRID.items()}},
 }
 
 
-def build_pipeline(model_name, enet, cfg, columns=None, limits=(None, None), seed=0, params=None):
+def build_pipeline(model_name, cfg, columns=None, limits=(None, None), seed=0, params=None):
     """Columns -> scaling -> model -> clip, with only the steps asked for.
 
     columns fixes the input columns (the frozen list); limits clips the predictions (None = range of the training y); params are pipeline
     parameters (as returned by tune).
     """
     spec = MODEL_SPECS[model_name]
-    model = spec["make"](enet, cfg)
+    model = spec["make"](cfg)
     model.set_params(**{k: seed for k in model.get_params() if k.endswith("random_state")})
     steps = []
     if columns is not None:
@@ -131,3 +134,4 @@ def tune(pipeline, grid, X, y, splits):
     chosen = summary["rmse_mean"].idxmin()
     summary["chosen"] = summary.index == chosen
     return params[chosen], summary
+

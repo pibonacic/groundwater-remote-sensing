@@ -6,14 +6,13 @@ from functions.models import SeasonalClimatology
 from functions.plots import oof_predictions_plot, splits_plot
 from functions.validation import compare, hv_block_splits, hv_blocks_table
 
-SITE = "sdh2"
+SITE = "sdh1"
 hv_v, hv_h = cfg.SITES[SITE]["hv_v"], cfg.SITES[SITE]["hv_h"]   # hv_blocks folds of this site
 
-out_dir = cfg.OUTPUTS_DIR / SITE / "04_baselines"
-out_dir.mkdir(parents=True, exist_ok=True)
+out_dir = cfg.out_dir(SITE, "04_baselines")
 
 # 1. Load the development period only (the holdout is never loaded here).
-X, y = load_development(cfg.PROCESSED_DIR / f"dev_{SITE}.csv")
+X, y = load_development(cfg.processed_path("development", SITE))
 
 # 2. hv_blocks folds: consecutive validation blocks of hv_v days from the first day (the last one absorbs the
 #    remainder), hv_h days dropped from the training set on each side of the block.

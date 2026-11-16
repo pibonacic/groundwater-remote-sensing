@@ -5,20 +5,20 @@ import config as cfg
 from functions.data import load_table, save_table, compute_indices
 from functions.exploration import (
     seasonal_anomaly, spearman_signs, regime_check, lead_table, rain_window_response, redundancy_clusters, acf_pacf)
-from functions.features import compute_partition
+from functions.features import compute_partition, modelling_days
 from functions.plots import (
     scatter_by_season, zscore_series_plot, ccf_plot, dendrogram_plot, rain_window_plot, acf_pacf_plot)
 
-SITE = "sdh2"
+SITE = "sdh1"
 hv_h = cfg.SITES[SITE]["hv_h"]   # hv_blocks folds of this site
 
-out_dir = cfg.OUTPUTS_DIR / SITE / "02_exploration"
-out_dir.mkdir(parents=True, exist_ok=True)
+out_dir = cfg.out_dir(SITE, "02_exploration")
 
 # 1. Load the clean table and keep only the development period (same cut as step 3,
 #    without the separation days, so the holdout is never looked at).
 daily = load_table(cfg.INTERIM_DIR / f"{SITE}_daily.csv")
-partition = compute_partition(daily["gw_cm"].dropna().index, cfg.DEV_YEARS, 0)
+partition = compute_partition(modelling_days(daily, cfg.BANDS.values(), bool(cfg.decisions(SITE)["WINDOWS"])),
+                              cfg.PARTITIONS[cfg.PARTITION], cfg.GAP)
 daily = daily.loc[:partition.dev_end]
 y = daily["gw_cm"]
 
