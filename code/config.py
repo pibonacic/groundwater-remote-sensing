@@ -40,8 +40,14 @@ SEED = 0                    # random state of every stochastic step
 
 N_BOOTSTRAP = 1000          # block-bootstrap resamples of the out-of-fold predictions
 BOOTSTRAP_BLOCK_DAYS = 30           # block length of the bootstrap on the out-of-fold predictions (05)
-BOOTSTRAP_BLOCK_DAYS_HOLDOUT = 15   # block length of the bootstrap on the holdout predictions (08)
+BOOTSTRAP_BLOCK_DAYS_HOLDOUT = 30   # block length of the bootstrap on the holdout predictions (07); 2026-11-18: 15 -> 30 (user)
 BOOTSTRAP_LEVEL = 0.95      # confidence level of the intervals
+
+# Predictions of 08 (whole satellite series): the final model is refit on development + holdout; its uncertainty
+# combines an ensemble refit on block-bootstrap resamples of the training days (blocks of BOOTSTRAP_BLOCK_DAYS) with
+# out-of-fold hv_blocks residuals of the same season (see functions/prediction.py).
+N_ENSEMBLE = 200            # members of the block-bootstrap ensemble
+PREDICTION_LEVELS = (0.8, 0.95)   # central prediction intervals
 
 REDUNDANCY_THRESHOLD = 0.9  # |Spearman| above which two bands/indices count as redundant (exploration only)
 
@@ -106,11 +112,14 @@ for _site in SITES.values():
 # hybrid_staged on the 17 columns, v=66 (user's choice; always the path of hybrid_staged): sdh1 dev_2y 3 columns
 # (step 14), sdh1 hold_1y 4 (step 13), sdh2 dev_2y 6 (step 11), sdh2 hold_1y 4 (step 13). 05 on the 17 columns kept
 # in 05_models_all_vars. The previous choices are left commented out.
+# 2026-11-16: MODEL = hybrid_staged for both sites and schemes (user's choice after 07, the old 08); 08_predictions
+# refits it on development + holdout with the parameters chosen in 05 (MODEL_PARAMS None = the chosen row of tuning.csv).
+# Script 08_holdout renamed 07_holdout (and its output folders).
 DECISIONS = {
     "sdh1": {"LEADS": [], "WINDOWS": [],
              "SPECTRAL":      ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn", "snirvswir", "I1", "I2", "I3"],
              "FINAL_COLUMNS": ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn", "snirvswir", "I1", "I2", "I3", "sin_doy", "cos_doy"], 
-             "MODEL": None, 
+             "MODEL": "hybrid_staged",
              "MODEL_PARAMS": None,
              "BY_PARTITION": {   # scheme -> overrides of FINAL_COLUMNS / MODEL / MODEL_PARAMS
                  #"dev_2y": {"FINAL_COLUMNS": ["dvi", "mi", "ndsinw", "bai_burn", "I1", "sin_doy", "cos_doy"]},
@@ -122,7 +131,7 @@ DECISIONS = {
     "sdh2": {"LEADS": [], "WINDOWS": [],
              "SPECTRAL":      ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn", "snirvswir", "I1", "I2", "I3"],
              "FINAL_COLUMNS": ["ndvi", "ndmi", "ndsaii", "str1", "dvi", "mlswi26", "savi", "mi", "ndsinw", "nli", "bai_burn", "snirvswir", "I1", "I2", "I3", "sin_doy", "cos_doy"], 
-             "MODEL": None, 
+             "MODEL": "hybrid_staged",
              "MODEL_PARAMS": None,
              "BY_PARTITION": {   # scheme -> overrides of FINAL_COLUMNS / MODEL / MODEL_PARAMS
                  #"dev_2y": {"FINAL_COLUMNS": ["mlswi26", "nli", "I2", "I3", "sin_doy", "cos_doy"]},
@@ -182,6 +191,10 @@ def _check_decisions(site, site_decisions):
         ok = all(isinstance(v, int) and v > 0 for v in values)
         assert ok, f"{site}.{name} must be positive integers, got {values}"
         assert len(set(values)) == len(values), f"{site}.{name} has repeated values"
+    model = site_decisions["MODEL"]
+    assert model is None or isinstance(model, str), f"{site}.MODEL must be None or a name of MODEL_SPECS, got {model}"
+    params = site_decisions["MODEL_PARAMS"]
+    assert params is None or isinstance(params, dict), f"{site}.MODEL_PARAMS must be None or a dict, got {params}"
     for name in ("SPECTRAL", "FINAL_COLUMNS"):
         values = site_decisions[name]
         assert values is None or len(set(values)) == len(values), f"{site}.{name} has repeated values"

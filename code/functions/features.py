@@ -44,6 +44,14 @@ def build_feature_table(bands, precip, leads, windows, band_map, columns):
     return table
 
 
+def feature_table(daily, decisions, band_map):
+    """Feature table of the whole clean daily table of step 1 with the LEADS, WINDOWS and SPECTRAL of decisions
+    (build_feature_table): the same table for training (03) and for the predictions over the whole series (08)."""
+    bands = daily.drop(columns=[TARGET, "qa_low", "precip_mm"])
+    return build_feature_table(bands, daily["precip_mm"], decisions["LEADS"], decisions["WINDOWS"], band_map,
+                               decisions["SPECTRAL"])
+
+
 def season_of(index):
     """Season label per date (DJF = austral summer), ordered DJF, MAM, JJA, SON."""
     return pd.Series(pd.Categorical(index.month.map(SEASON_BY_MONTH), categories=["DJF", "MAM", "JJA", "SON"]), index=index)

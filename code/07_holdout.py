@@ -1,4 +1,4 @@
-"""Step 12: evaluate the tuned models on the holdout (the only script that reads it)."""
+"""Step 7: evaluate the tuned models on the holdout (the only script that reads it)."""
 import ast
 
 import pandas as pd
@@ -14,7 +14,7 @@ SITE = "sdh1"
 BASELINE = "climatology"
 
 decisions = cfg.decisions(SITE)
-out_dir = cfg.out_dir(SITE, "08_holdout")
+out_dir = cfg.out_dir(SITE, "07_holdout")
 
 # 1. Load the development period (training) and the holdout (evaluation), and the clip limits.
 X_dev, y_dev = load_development(cfg.processed_path("development", SITE))

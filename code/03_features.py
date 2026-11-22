@@ -2,7 +2,7 @@
 import config as cfg
 from functions.data import load_table, save_table
 from functions.features import (
-    TARGET, build_feature_table, compute_partition, modelling_days, split_dev_holdout)
+    TARGET, compute_partition, feature_table, modelling_days, split_dev_holdout)
 
 SITE = "sdh1"
 
@@ -14,11 +14,10 @@ if leads is None or windows is None or spectral is None:
 # 1. Load the clean daily table from step 1.
 daily = load_table(cfg.INTERIM_DIR / f"{SITE}_daily.csv")
 y = daily[TARGET]
-bands = daily.drop(columns=[TARGET, "qa_low", "precip_mm"])
 
 # 2. Build the features on the WHOLE series (chosen bands and indices, leads, rain windows, calendar).
 #    Shifting or accumulating before trimming would lose rows and mix periods.
-table = build_feature_table(bands, daily["precip_mm"], leads, windows, cfg.BANDS, spectral)
+table = feature_table(daily, decisions, cfg.BANDS)
 
 # 3. Cut development / holdout with the scheme PARTITION of config.py, on the days with a complete row (water level,
 #    the NBAR bands of BANDS and rain only if there are rain WINDOWS): "dev_2y" = the first 2 years are development,
@@ -31,7 +30,7 @@ partition = compute_partition(modelling_days(daily, cfg.BANDS.values(), bool(win
 if "holdout_days" in scheme and len(y_hold) != scheme["holdout_days"]:
     raise SystemExit(f"holdout has {len(y_hold)} rows, not {scheme['holdout_days']}: some holdout days lack a feature")
 
-# 4. Save: development and holdout in separate files of this scheme (only script 08 reads the holdout).
+# 4. Save: development and holdout in separate files of this scheme (only script 07 evaluates on the holdout; 08 also trains on it).
 save_table(y_dev.to_frame().join(X_dev), cfg.processed_path("development", SITE))
 save_table(y_hold.to_frame().join(X_hold), cfg.processed_path("holdout", SITE))
 

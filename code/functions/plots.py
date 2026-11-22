@@ -4,7 +4,7 @@ import pandas as pd
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FormatStrFormatter
-from matplotlib.patches import Patch
+from matplotlib.patches import Patch, Rectangle
 from scipy.cluster.hierarchy import dendrogram
 
 from functions.features import season_of
@@ -38,39 +38,48 @@ def quality_overview_plot(df, gw_col, band, title):
     return fig
 
 
-def scatter_by_season(X, y, title):
-    """Each column of X against y, colored by season (DJF = austral summer)."""
-    fig = Figure(figsize=(3.2 * len(X.columns), 3.4), layout="constrained")
-    axes = fig.subplots(1, len(X.columns), squeeze=False)[0]
+def scatter_by_season(X, y, title, ncols=3):
+    """Each column of X against y, colored by season (DJF = austral summer); ncols panels per row."""
+    nrows = -(-len(X.columns) // ncols)
+    fig = Figure(figsize=(3.4 * ncols, 3.2 * nrows), layout="constrained")
+    axes = fig.subplots(nrows, ncols, sharey=True, squeeze=False)
     season = season_of(y.index)
-    for ax, col in zip(axes, X):
+    for ax, col in zip(axes.flat, X):
         for name, color in SEASON_COLORS.items():
             m = season == name
             ax.scatter(X[col][m], y[m], s=6, c=color, label=name)
         ax.set_xlabel(col)
-    _depth_axis(axes[0])
-    axes[-1].legend(markerscale=2)
+    for ax in axes.flat[len(X.columns):]:
+        ax.set_visible(False)
+    _depth_axis(axes[0, 0])
+    for row in axes:
+        row[0].set_ylabel(DEPTH_LABEL)
+    axes[0, -1].legend(markerscale=2)
     fig.suptitle(title)
     return fig
 
 
+Z_LIMIT = 4   # y range of zscore_series_plot: +-4 standard deviations
+
+
 def zscore_series_plot(X, y, title, suffix=" (z)"):
     """One panel per column of X: z-scored y (left axis, inverted: y is a depth) and z-scored column (right axis)
-    over time. Both axes of a panel share the same range; suffix goes after the names in the axis labels."""
+    over time. Both axes of every panel share the same range, +-Z_LIMIT (the same in all panels); suffix goes after the names in the axis labels."""
     zscore = lambda s: (s - s.mean()) / s.std()
     fig = Figure(figsize=(11, 2.2 * len(X.columns)), layout="constrained")
     axes = fig.subplots(len(X.columns), 1, sharex=True, squeeze=False)[:, 0]
     zy = zscore(y)
+    zX = X.apply(zscore)
+    low, high = -Z_LIMIT, Z_LIMIT   # the same range in every panel; values beyond it are cut
+    pad = 0
     for ax, col in zip(axes, X):
-        zx = zscore(X[col])
+        zx = zX[col]
         ax.plot(zy, lw=0.8, c="tab:blue")
         ax.set_ylabel(f"{y.name}{suffix}, deeper down", color="tab:blue")
         right = ax.twinx()
         right.plot(zx, lw=0.6, c="tab:orange")
         right.set_ylabel(f"{col}{suffix}", color="tab:orange")
         ax.axhline(0, c="k", lw=0.4)
-        low, high = min(zy.min(), zx.min()), max(zy.max(), zx.max())
-        pad = 0.05 * (high - low)
         ax.set_ylim(high + pad, low - pad)
         right.set_ylim(low - pad, high + pad)
     axes[-1].set_xlim(y.index.min(), y.index.max())
@@ -397,5 +406,146 @@ def readd_plot(readd, title):
     ax.set_yticks(y, readd.index)
     ax.set_xlabel("ΔRMSE vs proposed set (cm; negative = better)")
     ax.grid(axis="x", lw=0.4, alpha=0.4)
+    fig.suptitle(title)
+    return fig
+
+
+MONTH_TICKS = pd.date_range("2000-01-01", periods=12, freq="MS")   # x axis of the annual plots: a leap year
+
+
+def _calendar_date(index):
+    """Same month and day in the leap year 2000 (the common x axis of the annual plots)."""
+    return pd.to_datetime({"year": 2000, "month": index.month, "day": index.day})
+
+
+def _month_axis(ax):
+    ax.set_xticks(MONTH_TICKS, MONTH_TICKS.strftime("%b"))
+    ax.set_xlim(MONTH_TICKS[0], pd.Timestamp("2000-12-31"))
+
+
+def annual_cycle_plot(pred, observed, title):
+    """January to December: the predicted depth of every year as semi-transparent lines and the observed depth of
+    each observed year as an opaque line (deeper down)."""
+    fig = Figure(figsize=(11, 4), layout="constrained")
+    ax = fig.subplots()
+    pred_years = sorted(set(pred.index.year))
+    for year in pred_years:
+        p = pred[pred.index.year == year]
+        ax.plot(_calendar_date(p.index), p.to_numpy(), c="tab:blue", lw=0.8, alpha=0.3)
+    handles = [Line2D([], [], c="tab:blue", lw=0.8, alpha=0.5, label=f"modeled ({pred_years[0]}–{pred_years[-1]})")]
+    obs_years = sorted(set(observed.index.year))
+    shades = np.linspace(0.15, 0.55, len(obs_years))
+    for year, shade in zip(obs_years, shades):
+        o = observed[observed.index.year == year]
+        color = (shade * 0.6, shade * 0.75, shade + 0.25)
+        ax.plot(_calendar_date(o.index), o.to_numpy(), c=color, lw=1.8)
+        handles.append(Line2D([], [], c=color, lw=1.8, label=f"observed {year}"))
+    _depth_axis(ax, "depth (cm)")
+    _month_axis(ax)
+    ax.grid(lw=0.4, alpha=0.4)
+    ax.legend(handles=handles, loc="upper left", frameon=False)
+    fig.suptitle(title)
+    return fig
+
+
+def year_doy_heatmap(values, observed_days, title, label="depth (cm)", cmap="magma_r", center=None):
+    """One row per year and one column per day of the year (leap-year calendar, so the same date is in the same
+    column every year), colored by values; days without a value are blank. Dashed rectangles mark the observed
+    days (one per run of consecutive observed days in each year). center: a diverging scale symmetric around it."""
+    cal = _calendar_date(values.index)
+    years = np.arange(values.index.year.min(), values.index.year.max() + 1)
+    grid = pd.DataFrame(np.nan, index=years, columns=pd.date_range("2000-01-01", "2000-12-31"))
+    for (year, day), value in zip(zip(values.index.year, cal), values.to_numpy()):
+        grid.loc[year, day] = value
+    no_leap = ~pd.DatetimeIndex([f"{y}-01-01" for y in years]).is_leap_year
+    feb28, feb29 = pd.Timestamp("2000-02-28"), pd.Timestamp("2000-02-29")
+    grid.loc[no_leap, feb29] = grid.loc[no_leap, feb28]   # display only: no blank Feb 29 column in common years
+    fig = Figure(figsize=(11, 0.28 * len(years) + 1.6), layout="constrained")
+    ax = fig.subplots()
+    x_edges = np.append(grid.columns, grid.columns[-1] + pd.Timedelta(days=1))
+    y_edges = np.append(years, years[-1] + 1) - 0.5
+    kwargs = {}
+    if center is not None:
+        span = np.nanmax(np.abs(grid.to_numpy() - center))
+        kwargs = {"vmin": center - span, "vmax": center + span}
+    mesh = ax.pcolormesh(x_edges, y_edges, np.ma.masked_invalid(grid.to_numpy()), cmap=cmap, shading="flat", **kwargs)
+    observed = pd.DatetimeIndex(observed_days)
+    for year in sorted(set(observed.year)):
+        days = observed[observed.year == year]
+        run = (days.to_series().diff() != pd.Timedelta(days=1)).cumsum()
+        for _, d in days.to_series().groupby(run.to_numpy()):
+            start, end = _calendar_date(d.index[[0, -1]])
+            ax.add_patch(Rectangle((start, year - 0.5), end + pd.Timedelta(days=1) - start, 1, fill=False, ls="--",
+                                   lw=1.2, ec="white" if center is None else "k"))
+    ax.set_yticks(years)
+    ax.invert_yaxis()
+    _month_axis(ax)
+    ax.set_xlim(x_edges[0], x_edges[-1])
+    bar = fig.colorbar(mesh, ax=ax, label=label, pad=0.01)
+    if center is None:
+        bar.ax.invert_yaxis()   # shallow on top, as the depth axes
+    ax.set_title("dashed: observed days", loc="right", fontsize=9)
+    fig.suptitle(title)
+    return fig
+
+
+def _interval_bands(ax, quantiles, levels, color="tab:blue"):
+    for level, alpha in zip(sorted(levels, reverse=True), (0.18, 0.35)):
+        pct = round(level * 100)
+        ax.fill_between(quantiles.index, quantiles[f"lo{pct}"], quantiles[f"hi{pct}"], color=color, alpha=alpha,
+                        lw=0, label=f"{pct}% interval")
+
+
+def prediction_series_plot(table, levels, title):
+    """Whole predicted series: point prediction, prediction intervals, observed depth and, as ticks at the bottom,
+    the days whose inputs fall outside the training range.
+
+    table has pred, lo{pct} / hi{pct}, observed (NaN when not observed) and n_outside."""
+    fig = Figure(figsize=(13, 4.2), layout="constrained")
+    ax = fig.subplots()
+    _interval_bands(ax, table, levels)
+    ax.plot(table["pred"], c="tab:blue", lw=0.7, label="prediction")
+    ax.plot(table["observed"], c="k", lw=0.9, label="observed")
+    extrap = table.index[table["n_outside"] > 0]
+    ax.plot(extrap, np.full(len(extrap), 0.02), "|", c="tab:red", ms=6, transform=ax.get_xaxis_transform(),
+            label="inputs outside training range")
+    _depth_axis(ax, "depth (cm)")
+    ax.set_xlim(table.index.min(), table.index.max())
+    ax.grid(lw=0.4, alpha=0.4)
+    ax.legend(loc="upper left", ncols=5, frameon=False, fontsize=8)
+    fig.suptitle(title)
+    return fig
+
+
+def coverage_plot(y, pred, quantiles, levels, coverage, title):
+    """Validation of the intervals on the holdout: observed depth, prediction and intervals; the empirical coverage
+    of each level (coverage table, stratum "all") goes in the title."""
+    fig = Figure(figsize=(11, 3.8), layout="constrained")
+    ax = fig.subplots()
+    _interval_bands(ax, quantiles, levels)
+    ax.plot(pred, c="tab:blue", lw=0.9, label="prediction")
+    ax.plot(y, c="k", lw=1, label="observed")
+    _depth_axis(ax, "depth (cm)")
+    ax.grid(lw=0.4, alpha=0.4)
+    ax.legend(loc="upper left", ncols=4, frameon=False, fontsize=8)
+    cov = coverage[coverage["stratum"] == "all"]
+    fig.suptitle(f"{title}\n" + ", ".join(f"{round(l * 100)}% interval covers {c:.0%}"
+                                          for l, c in zip(cov["level"], cov["coverage"])))
+    return fig
+
+
+def member_examples_plot(members, sim, title):
+    """One panel per column of members: the prediction of that ensemble member and the same member minus its drawn
+    out-of-fold residual (the simulated depth, sim)."""
+    fig = Figure(figsize=(13, 2.4 * len(members.columns)), layout="constrained")
+    axes = fig.subplots(len(members.columns), 1, sharex=True, sharey=True, squeeze=False)[:, 0]
+    for ax, member in zip(axes, members):
+        ax.plot(sim[member], c="tab:orange", lw=0.5, alpha=0.8, label="member − r")
+        ax.plot(members[member], c="tab:blue", lw=0.8, label="member")
+        ax.set_title(member, loc="left", fontsize=9)
+        _depth_axis(ax, "depth (cm)")
+        ax.grid(lw=0.4, alpha=0.4)
+    axes[0].legend(loc="upper left", ncols=2, frameon=False, fontsize=8)
+    axes[-1].set_xlim(members.index.min(), members.index.max())
     fig.suptitle(title)
     return fig
