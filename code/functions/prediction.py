@@ -17,7 +17,7 @@ from sklearn.base import clone
 
 from functions.features import season_of
 from functions.models import SeasonalClimatology
-from functions.validation import _bootstrap_blocks, compare
+from functions.evaluation import _bootstrap_blocks, compare
 
 CALENDAR_COLUMNS = ("sin_doy", "cos_doy")   # always inside the training range; not checked for extrapolation
 

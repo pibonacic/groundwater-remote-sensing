@@ -6,7 +6,7 @@ from functions.data import save_table
 from functions.features import load_development, season_of
 from functions.models import CLIP_PREFIX, MODEL_SPECS, SeasonalClimatology, build_pipeline, pipeline_grid, tune
 from functions.plots import bootstrap_ci_plot, by_fold_boxplot, oof_predictions_plot, season_metrics_plot, taylor_plot
-from functions.validation import block_bootstrap, compare, hv_block_splits, metrics_table, summarize_folds
+from functions.evaluation import block_bootstrap, compare, hv_block_splits, metrics_table, summarize_folds
 
 SITE = "sdh1"
 hv_v, hv_h = cfg.SITES[SITE]["hv_v"], cfg.SITES[SITE]["hv_h"]   # hv_blocks folds of this site

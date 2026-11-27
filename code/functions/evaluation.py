@@ -1,4 +1,4 @@
-"""hv_blocks folds, metrics and the evaluation loop."""
+"""Cross-validation (hv_blocks folds), metrics and the evaluation loop of the models."""
 import numpy as np
 import pandas as pd
 from sklearn.base import clone

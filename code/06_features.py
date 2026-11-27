@@ -10,7 +10,7 @@ from functions.features import load_development
 from functions.importance import backward_elimination, feature_units, readd_check, shap_by_unit, shap_oof
 from functions.models import MODEL_SPECS, build_pipeline
 from functions.plots import elimination_path_plot, readd_plot, shap_beeswarm_plot, shap_importance_plot
-from functions.validation import hv_block_splits, rmse_diff_bootstrap
+from functions.evaluation import hv_block_splits, rmse_diff_bootstrap
 
 SITE = "sdh1"
 hv_v, hv_h = cfg.SITES[SITE]["hv_v"], cfg.SITES[SITE]["hv_h"]   # hv_blocks folds of this site

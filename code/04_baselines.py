@@ -4,7 +4,7 @@ from functions.data import save_table
 from functions.features import load_development
 from functions.models import SeasonalClimatology
 from functions.plots import oof_predictions_plot, splits_plot
-from functions.validation import compare, hv_block_splits, hv_blocks_table
+from functions.evaluation import compare, hv_block_splits, hv_blocks_table
 
 SITE = "sdh1"
 hv_v, hv_h = cfg.SITES[SITE]["hv_v"], cfg.SITES[SITE]["hv_h"]   # hv_blocks folds of this site

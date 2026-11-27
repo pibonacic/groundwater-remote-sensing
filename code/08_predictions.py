@@ -15,7 +15,7 @@ from functions.plots import (annual_cycle_plot, coverage_plot, member_examples_p
 from functions.prediction import (annual_summary, bootstrap_ensemble, coverage_table, daily_ranges, draw_residuals,
                                   oof_residuals, outside_training_range, predictive_quantiles, residual_ranges,
                                   simulate)
-from functions.validation import hv_block_splits
+from functions.evaluation import hv_block_splits
 
 SITE = "sdh1"
 

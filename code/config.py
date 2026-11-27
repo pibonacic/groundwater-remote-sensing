@@ -16,10 +16,29 @@ PARTITION = "hold_1y"      # "dev_2y" or "hold_1y"
 PARTITIONS = {"dev_2y": {"dev_years": 2}, "hold_1y": {"holdout_days": 365}}
 MIN_PAIRS = 30              # minimum overlapping days to compute a correlation
 CCF_KS = range(-30, 31)     # k > 0: spectral value k days AFTER the water level
-ANOMALY_HALF_WINDOW = 15      # anomalies (and the window climatology of 04) use the mean of the days within this many days either side of the day of the year
+ANOMALY_HARMONICS_K = 2     # 02: anomaly = series minus its harmonic fit of order K (constant + sin/cos of k*theta, k = 1..K,
+                            # theta = 2 pi (day of year - 1) / days in the year), fitted on the piezometric period
 RAIN_WINDOWS = [3, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 30]   # candidate accumulation windows (days) for exploration
 RAIN_MOISTURE_INDEX = "str1"            # index whose anomaly responds to rain
 REGIME_THRESHOLD_CM = 0     # depth above this = "below surface" regime (depth is positive below the surface)
+
+# Exploration (02) only: diagnostic, on the whole piezometric record (development + holdout, both schemes); outputs
+# in outputs/<site>/02_exploration/. The decisions of the model are still taken on the development of each scheme.
+REGIME_BINS_CM = (0, 20)    # three regimes by raw depth: ponded < 0, shallow 0-20, deep > 20 cm
+SLOW_WINDOW_DAYS = 31       # slow part = centered rolling median of this many days; fast part = the rest
+PHASE_SMOOTH_DAYS = 31      # rise / fall of the level: sign of the derivative of the centered rolling mean of the depth
+PHASE_MIN_RATE_CM_DAY = 0.1  # days with |derivative| below this are neither rise nor fall
+PHASE_SLOPE_N_BOOTSTRAP = 200  # block-bootstrap draws of the Theil-Sen slopes (slow: all pairs of days)
+TRAJECTORY_DAYS = 7         # rolling mean of the trajectory drawn on the scatters colored by date
+JUMP_RECOVERY_DAYS = 10     # a jump is recovered if the level returns more than JUMP_RECOVERY_FRACTION of it
+JUMP_RECOVERY_FRACTION = 0.5  # within JUMP_RECOVERY_DAYS days (jumps: |day-to-day change| > max_jump_cm of SITES)
+EVENT_MIN_RISE_CM = 2.0     # rise events (consecutive days of decreasing depth) with at least this rise ...
+EVENT_MIN_RAIN_MM = 2.0     # ... and at least this rain from EVENT_RAIN_LEAD_DAYS before the start to the end
+EVENT_RAIN_LEAD_DAYS = 2    # give the apparent specific yield Sy = rain (mm) / rise (mm)
+SEPTEMBER_VARIABLES = ["I1", "I2", "I3", "mlswi26", "str1", "bai_burn"]
+SEPTEMBER_MIN_PAIRS = 20    # September of one year has at most 30 days (MIN_PAIRS would drop most years)
+ANNUAL_ANOMALY_VARIABLES = ["I3", "mlswi26"]   # yearly / seasonal anomalies vs the 2012-2026 climatology, detrended
+HYDRO_YEAR_START_MONTH = 4  # hydrological year = April to March, labeled by the year it starts (2025 = Apr 2025 - Mar 2026)
 
 # Validation folds (hv_blocks, counted in days): consecutive validation blocks of hv_v days from the first development
 # day (the last block absorbs the remainder), with hv_h days dropped from the training set on each side of the block
